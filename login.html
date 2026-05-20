@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SAM Messenger - Вход</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background-color: #0e1621; color: #efeef1; margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            display: flex; justify-content: center; align-items: center; height: 100vh;
+        }
+        #auth-block {
+            background-color: #182533; border-radius: 10px; padding: 40px 30px; width: 360px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3); text-align: center;
+        }
+        #auth-block h2 { margin: 0 0 10px 0; color: #fff; }
+        .auth-tabs { display: flex; margin-bottom: 20px; background: #0e1621; border-radius: 6px; padding: 3px; }
+        .tab { flex: 1; padding: 8px; cursor: pointer; color: #7f91a4; border-radius: 4px; font-weight: 500; }
+        .tab.active { background: #2481cc; color: #fff; }
+        .auth-input {
+            width: 100%; padding: 12px; margin: 8px 0; background-color: #0e1621;
+            border: 1px solid #111923; border-radius: 6px; color: white; outline: none;
+        }
+        .auth-btn {
+            width: 100%; padding: 12px; background-color: #2481cc; color: white;
+            border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 15px;
+        }
+        #auth-error { color: #e53935; font-size: 13px; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <div id="auth-block">
+        <h2>SAM Messenger</h2>
+        <div class="auth-tabs">
+            <div id="tab-login" class="tab active" onclick="switchAuthTab('login')">Вход</div>
+            <div id="tab-reg" class="tab" onclick="switchAuthTab('register')">Регистрация</div>
+        </div>
+        <input type="text" id="auth-user" class="auth-input" placeholder="Имя пользователя" autocomplete="off">
+        <input type="password" id="auth-pass" class="auth-input" placeholder="Пароль">
+        <button class="auth-btn" onclick="submitAuth()">Войти</button>
+        <div id="auth-error"></div>
+    </div>
+
+    <script>
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+        let currentAuthAction = 'login';
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'auth_result') {
+                if (data.success) {
+                    localStorage.setItem('sam_username', data.username);
+                    localStorage.setItem('sam_password', document.getElementById('auth-pass').value.trim());
+                    window.location.href = '/chat';
+                } else {
+                    document.getElementById('auth-error').textContent = data.error;
+                }
+            }
+        };
+
+        function switchAuthTab(type) {
+            currentAuthAction = type;
+            document.getElementById('tab-login').classList.toggle('active', type === 'login');
+            document.getElementById('tab-reg').classList.toggle('active', type === 'register');
+            document.getElementById('auth-error').textContent = '';
+        }
+
+        function submitAuth() {
+            const u = document.getElementById('auth-user').value.trim();
+            const p = document.getElementById('auth-pass').value.trim();
+            if(u && p) ws.send(JSON.stringify({ action: currentAuthAction, username: u, password: p }));
+        }
+    </script>
+</body>
+</html>

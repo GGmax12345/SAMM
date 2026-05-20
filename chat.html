@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SAM Messenger - Чаты</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background-color: #0e1621; color: #efeef1; margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            display: flex; height: 100vh; overflow: hidden;
+        }
+        #main-app { width: 100vw; height: 100vh; position: relative; }
+        .app-layout { display: flex; height: 100%; width: 100%; }
+        
+        #side-menu-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        #side-menu { position: fixed; top: 0; left: -300px; width: 280px; height: 100%; background-color: #1c242f; z-index: 1001; transition: left 0.3s ease; box-shadow: 2px 0 10px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
+        #side-menu.open { left: 0; }
+        .menu-profile-header { padding: 25px 20px; background-color: #242f3d; border-bottom: 1px solid #10171e; }
+        .menu-avatar { width: 55px; height: 55px; border-radius: 50%; background: #2a94e6; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; margin-bottom: 10px; }
+        .menu-name { font-weight: 600; color: #fff; font-size: 16px; }
+        .menu-status { font-size: 13px; color: #5288c1; margin-top: 4px;}
+        .menu-items { padding: 10px 0; }
+        .menu-item { padding: 15px 20px; cursor: pointer; display: flex; align-items: center; gap: 15px; color: #e1e6eb; font-weight: 500; transition: background 0.2s;}
+        .menu-item:hover { background-color: #242f3d; }
+        .menu-icon { font-size: 18px; width: 24px; text-align: center; }
+
+        .sidebar { width: 320px; background-color: #17212b; border-right: 1px solid #10171e; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 12px 15px; display: flex; align-items: center; gap: 15px; background: #17212b; }
+        .hamburger { font-size: 24px; color: #7f91a4; cursor: pointer; user-select: none; }
+        .search-bar { flex-grow: 1; background: #24303f; border: none; border-radius: 20px; padding: 10px 15px; color: #fff; outline: none; font-size: 14px; }
+        .room-list { flex-grow: 1; overflow-y: auto; }
+        .room-item { display: flex; align-items: center; padding: 10px 15px; cursor: pointer; gap: 12px; }
+        .room-item:hover { background-color: #202b36; }
+        .room-item.active { background-color: #2b394a; }
+        .avatar { width: 48px; height: 48px; border-radius: 50%; background: #2f6ea5; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; text-transform: uppercase; }
+        .room-info { flex-grow: 1; min-width: 0; }
+        .room-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .room-name { font-weight: 600; color: #fff; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .room-time { color: #7f91a4; font-size: 12px; }
+        .room-preview { color: #7f91a4; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .chat-area { flex-grow: 1; display: flex; flex-direction: column; background: #0e1621; background-image: url('https://user-images.githubusercontent.com/15082143/114170940-bf38b580-9943-11eb-8c9e-5b169527ec68.jpg'); }
+        .chat-header { padding: 12px 20px; background-color: #17212b; border-bottom: 1px solid #10171e; display: flex; justify-content: space-between; align-items: center; height: 60px; }
+        .chat-title { font-weight: 600; color: #fff; font-size: 16px; }
+        .messages-container { flex-grow: 1; padding: 20px 40px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        
+        .msg-row { display: flex; width: 100%; }
+        .msg-row.my-row { justify-content: flex-end; }
+        .msg-block { background-color: #182533; padding: 6px 12px; border-radius: 10px 10px 10px 0px; max-width: 60%; position: relative; color: #f5f5f5; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+        .msg-row.my-row .msg-block { background-color: #2b5278; border-radius: 10px 10px 0px 10px; }
+        .msg-block.system-msg { background-color: #131c26 !important; border: 1px dashed #ff7b72; color: #8b949e; font-style: italic; }
+        .msg-author { font-size: 13px; color: #5288c1; font-weight: 600; margin-bottom: 3px; }
+        .msg-row.my-row .msg-author { display: none; }
+        .msg-body { font-size: 14.5px; line-height: 1.4; word-break: break-word; padding-right: 40px; }
+        .msg-body img { max-width: 100%; max-height: 300px; border-radius: 5px; margin-top: 4px; display: block; }
+        .msg-body a { color: #5288c1; text-decoration: none; }
+        .msg-time { position: absolute; right: 8px; bottom: 4px; font-size: 11px; color: #7f91a4; }
+        
+        .admin-actions { display: none; margin-top: 5px; font-size: 11px; gap: 10px; border-top: 1px solid #24303f; padding-top: 4px; }
+        .admin-active .admin-actions { display: flex; }
+        .adm-btn { color: #ff6b6b; cursor: pointer; }
+
+        .input-panel { padding: 10px 20px 15px 20px; display: flex; gap: 15px; background-color: #17212b; align-items: center; }
+        .attach-btn { color: #7f91a4; font-size: 22px; cursor: pointer; }
+        #file-input { display: none; }
+        #message-input { flex-grow: 1; padding: 10px 15px; background-color: #0e1621; border: none; border-radius: 7px; color: white; outline: none; font-size: 15px; }
+        #send-btn { color: #5288c1; font-size: 16px; font-weight: bold; cursor: pointer; }
+        
+        .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;}
+        .modal-box { background: #17212b; padding: 20px; border-radius: 8px; width: 320px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); }
+        .modal-box h3 { margin-top: 0; color: #fff; }
+        .modal-list { max-height: 300px; overflow-y: auto; margin-bottom: 15px; }
+        .modal-list-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #24303f; color: #e1e6eb; display: flex; align-items: center; gap: 10px;}
+        .modal-list-item:hover { background: #202b36; }
+        .modal-input { width: 100%; padding: 10px; background: #0e1621; border: 1px solid #24303f; color: white; border-radius: 5px; margin-bottom: 15px; }
+        .modal-btns { display: flex; justify-content: flex-end; gap: 10px; }
+        .btn-cancel { background: transparent; color: #7f91a4; border: none; cursor: pointer; padding: 8px 12px; }
+        .btn-primary { background: #2481cc; color: white; border: none; cursor: pointer; padding: 8px 15px; border-radius: 4px; }
+        #empty-chat-msg { text-align: center; color: #7f91a4; background: rgba(23, 33, 43, 0.7); padding: 10px 20px; border-radius: 20px; margin: auto; }
+    </style>
+</head>
+<body>
+    <div id="main-app">
+        <div id="side-menu-overlay" onclick="toggleMenu()"></div>
+        <div id="side-menu">
+            <div class="menu-profile-header">
+                <div class="menu-avatar" id="menu-avatar-letter">U</div>
+                <div class="menu-name" id="menu-username">Username</div>
+                <div class="menu-status">SAM Личный кабинет</div>
+            </div>
+            <div class="menu-items">
+                <div class="menu-item" onclick="window.location.href='/profile'"><span class="menu-icon">✏️</span> Изменить ник</div>
+                <div class="menu-item" onclick="openCreateGroupModal()"><span class="menu-icon">👥</span> Создать группу</div>
+                <div class="menu-item" onclick="openContactsModal()"><span class="menu-icon">👤</span> Контакты</div>
+                <div class="menu-item" onclick="localStorage.clear(); window.location.href='/'"><span class="menu-icon">🚪</span> Выйти</div>
+            </div>
+        </div>
+
+        <div id="group-modal" class="modal-overlay">
+            <div class="modal-box">
+                <h3>Создать группу</h3>
+                <input type="text" id="new-group-name" class="modal-input" placeholder="Название группы...">
+                <div class="modal-btns">
+                    <button class="btn-cancel" onclick="closeModals()">Отмена</button>
+                    <button class="btn-primary" onclick="confirmCreateGroup()">Создать</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="contacts-modal" class="modal-overlay">
+            <div class="modal-box">
+                <h3>Выберите контакт</h3>
+                <div id="contacts-list" class="modal-list"></div>
+                <div class="modal-btns">
+                    <button class="btn-cancel" onclick="closeModals()">Закрыть</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="add-member-modal" class="modal-overlay">
+            <div class="modal-box">
+                <h3>Добавить в группу</h3>
+                <div id="add-member-list" class="modal-list"></div>
+                <div class="modal-btns">
+                    <button class="btn-cancel" onclick="closeModals()">Закрыть</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="app-layout">
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <div class="hamburger" onclick="toggleMenu()">☰</div>
+                    <input type="text" class="search-bar" placeholder="Поиск">
+                </div>
+                <div class="room-list" id="sidebar-room-list"></div>
+            </div>
+            
+            <div class="chat-area">
+                <div class="chat-header" id="main-chat-header" style="display: none;">
+                    <div class="chat-title" id="chat-title-top">Название чата</div>
+                    <button id="add-member-btn" onclick="openAddMemberModal()" style="display: none; background: #2481cc; color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px;">+ Добавить участника</button>
+                </div>
+                <div class="messages-container" id="messages">
+                    <div id="empty-chat-msg">Выберите чат или создайте новый для начала общения</div>
+                </div>
+                <div class="input-panel" id="main-input-panel" style="display: none;">
+                    <label class="attach-btn">
+                        📎<input type="file" id="file-input" onchange="sendFile()">
+                    </label>
+                    <input type="text" id="message-input" maxlength="1000" placeholder="Напишите сообщение..." onkeypress="if(event.key==='Enter') sendTextMessage()">
+                    <div id="send-btn" onclick="sendTextMessage()">ОТПРАВИТЬ</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const u = localStorage.getItem('sam_username');
+        const p = localStorage.getItem('sam_password');
+        if(!u || !p) window.location.href = '/';
+
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+        
+        let myUsername = u;
+        let myRole = 'user';
+        let currentRoom = null;
+        let renderedRooms = new Set();
+
+        ws.onopen = function() {
+            ws.send(JSON.stringify({ action: 'login', username: u, password: p }));
+        };
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'auth_result') {
+                if (data.success) {
+                    myUsername = data.username;
+                    myRole = data.role;
+                    document.getElementById('menu-username').textContent = myUsername;
+                    document.getElementById('menu-avatar-letter').textContent = myUsername.charAt(0).toUpperCase();
+                    if (myRole === 'admin') document.getElementById('messages').classList.add('admin-active');
+                } else {
+                    window.location.href = '/';
+                }
+            }
+            else if (data.type === 'init_data') {
+                data.groups.forEach(g => addRoomToSidebar(g, false));
+                data.private_rooms.forEach(pr => {
+                    const parts = pr.split('|');
+                    const targetUser = parts[1] === myUsername ? parts[2] : parts[1];
+                    addRoomToSidebar(pr, true, targetUser);
+                });
+            }
+            else if (data.type === 'new_group') {
+                addRoomToSidebar(data.name, false);
+            }
+            else if (data.type === 'user_list') {
+                if (document.getElementById('add-member-modal').style.display === 'flex') {
+                    const listEl = document.getElementById('add-member-list');
+                    listEl.innerHTML = '';
+                    data.users.forEach(user => {
+                        const div = document.createElement('div');
+                        div.className = 'modal-list-item';
+                        div.innerHTML = `<div class="avatar" style="width:30px;height:30px;font-size:14px;">${user.charAt(0)}</div> ${user}`;
+                        div.onclick = () => { 
+                            ws.send(JSON.stringify({ action: 'add_to_group', room: currentRoom, username: user }));
+                            closeModals(); 
+                        };
+                        listEl.appendChild(div);
+                    });
+                } else {
+                    const listEl = document.getElementById('contacts-list');
+                    listEl.innerHTML = '';
+                    data.users.forEach(user => {
+                        const div = document.createElement('div');
+                        div.className = 'modal-list-item';
+                        div.innerHTML = `<div class="avatar" style="width:30px;height:30px;font-size:14px;">${user.charAt(0)}</div> ${user}`;
+                        div.onclick = () => { closeModals(); startPrivateChat(user); };
+                        listEl.appendChild(div);
+                    });
+                }
+            }
+            else if (data.type === 'msg') {
+                let isPrivate = data.room.startsWith('PRIVATE|');
+                let targetTitle = data.room;
+                if(isPrivate) {
+                    const parts = data.room.split('|');
+                    targetTitle = parts[1] === myUsername ? parts[2] : parts[1];
+                }
+                addRoomToSidebar(data.room, isPrivate, targetTitle);
+
+                const previewEl = document.getElementById('p-' + data.room);
+                const timeEl = document.getElementById('t-' + data.room);
+                if (previewEl) {
+                    previewEl.textContent = data.msg_type === 'text' ? `${data.username}: ${data.content}` : `${data.username}: [Вложение]`;
+                    if(timeEl) timeEl.textContent = data.time;
+                }
+
+                if (data.room === currentRoom) {
+                    renderMessage(data, data.history);
+                }
+            }
+            else if (data.type === 'clear_chat') {
+                document.getElementById('messages').innerHTML = '';
+            }
+            else if (data.type === 'delete_evt') {
+                const el = document.getElementById('content-' + data.id);
+                const block = document.getElementById('block-' + data.id);
+                if (el && block) {
+                    el.innerHTML = "Сообщение удалено администратором";
+                    block.classList.add('system-msg');
+                }
+            }
+            else if (data.type === 'error_msg') {
+                alert(data.text);
+            }
+            else if (data.type === 'success_msg') {
+                alert(data.text);
+            }
+        };
+
+        function toggleMenu() {
+            const menu = document.getElementById('side-menu');
+            const overlay = document.getElementById('side-menu-overlay');
+            const isOpen = menu.classList.contains('open');
+            menu.classList.toggle('open', !isOpen);
+            overlay.style.display = isOpen ? 'none' : 'block';
+        }
+
+        function closeModals() {
+            document.getElementById('group-modal').style.display = 'none';
+            document.getElementById('contacts-modal').style.display = 'none';
+            document.getElementById('add-member-modal').style.display = 'none';
+        }
+
+        function openCreateGroupModal() { toggleMenu(); document.getElementById('group-modal').style.display = 'flex'; }
+        
+        function confirmCreateGroup() {
+            const val = document.getElementById('new-group-name').value.trim();
+            if(val) {
+                ws.send(JSON.stringify({ action: 'create_group', name: val }));
+                document.getElementById('new-group-name').value = '';
+                closeModals();
+            }
+        }
+
+        function openContactsModal() {
+            toggleMenu();
+            ws.send(JSON.stringify({ action: 'get_users' }));
+            document.getElementById('contacts-modal').style.display = 'flex';
+        }
+
+        function openAddMemberModal() {
+            ws.send(JSON.stringify({ action: 'get_users' }));
+            document.getElementById('add-member-modal').style.display = 'flex';
+        }
+
+        function startPrivateChat(targetUser) {
+            const users = [myUsername, targetUser].sort();
+            const roomId = `PRIVATE|${users[0]}|${users[1]}`;
+            addRoomToSidebar(roomId, true, targetUser);
+            changeRoom(roomId, targetUser);
+        }
+
+        function addRoomToSidebar(roomId, isPrivate, customTitle = null) {
+            if(renderedRooms.has(roomId)) return;
+            renderedRooms.add(roomId);
+
+            const title = customTitle || roomId;
+            const bgStr = isPrivate ? 'background:#b84343' : '';
+            const div = document.createElement('div');
+            div.className = 'room-item';
+            div.id = 'room-' + roomId;
+            div.onclick = () => changeRoom(roomId, title);
+
+            div.innerHTML = `
+                <div class="avatar" style="${bgStr}">${title.charAt(0).toUpperCase()}</div>
+                <div class="room-info">
+                    <div class="room-meta"><span class="room-name">${title}</span><span class="room-time" id="t-${roomId}"></span></div>
+                    <div class="room-preview" id="p-${roomId}">Нет сообщений</div>
+                </div>
+            `;
+            document.getElementById('sidebar-room-list').prepend(div);
+        }
+
+        function changeRoom(roomId, titleText) {
+            if (currentRoom === roomId) return;
+            if (currentRoom) {
+                const oldEl = document.getElementById('room-' + currentRoom);
+                if(oldEl) oldEl.classList.remove('active');
+            }
+            currentRoom = roomId;
+            document.getElementById('room-' + currentRoom).classList.add('active');
+            
+            document.getElementById('main-chat-header').style.display = 'flex';
+            document.getElementById('main-input-panel').style.display = 'flex';
+            document.getElementById('chat-title-top').textContent = titleText;
+            
+            if (!roomId.startsWith('PRIVATE|')) {
+                document.getElementById('add-member-btn').style.display = 'block';
+            } else {
+                document.getElementById('add-member-btn').style.display = 'none';
+            }
+            
+            ws.send(JSON.stringify({ action: 'join_room', room: roomId }));
+        }
+
+        function sendTextMessage() {
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (text && currentRoom) {
+                ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: text, msg_type: 'text' }));
+                input.value = '';
+            }
+        }
+
+        function sendFile() {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            if (!file || !currentRoom) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                let mType = file.type.startsWith('image/') ? 'image' : 'file';
+                ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: JSON.stringify({ name: file.name, data: e.target.result }), msg_type: mType }));
+            };
+            reader.readAsDataURL(file);
+            fileInput.value = '';
+        }
+
+        function renderMessage(msg, isHistoryLoad) {
+            const container = document.getElementById('messages');
+            const emptyMsg = document.getElementById('empty-chat-msg');
+            if(emptyMsg) emptyMsg.remove();
+
+            const isMe = msg.username === myUsername;
+            const row = document.createElement('div');
+            row.className = 'msg-row' + (isMe ? ' my-row' : '');
+            
+            const div = document.createElement('div');
+            div.id = 'block-' + msg.id;
+            div.className = 'msg-block' + (msg.msg_type === 'system' ? ' system-msg' : '');
+            
+            let html = `<div class="msg-author">${msg.username}</div><div class="msg-body" id="content-${msg.id}">`;
+            
+            if (msg.msg_type === 'text') html += document.createTextNode(msg.content).textContent;
+            else if (msg.msg_type === 'image') html += `<img src="${JSON.parse(msg.content).data}">`;
+            else if (msg.msg_type === 'file') {
+                const f = JSON.parse(msg.content);
+                html += `📎 <a href="${f.data}" download="${f.name}">${f.name}</a>`;
+            } else if (msg.msg_type === 'system') html += msg.content;
+            
+            html += `</div><div class="msg-time">${msg.time}</div>`;
+            if (msg.msg_type !== 'system') {
+                html += `<div class="admin-actions"><span class="adm-btn" onclick="deleteMessage(${msg.id})">Удалить</span></div>`;
+            }
+            
+            div.innerHTML = html; row.appendChild(div); container.appendChild(row);
+            if(!isHistoryLoad) container.scrollTop = container.scrollHeight;
+            else setTimeout(() => { container.scrollTop = container.scrollHeight; }, 10);
+        }
+
+        function deleteMessage(id) { if(confirm("Удалить?")) ws.send(JSON.stringify({ action: 'delete_msg', msg_id: id })); }
+    </script>
+</body>
+</html>

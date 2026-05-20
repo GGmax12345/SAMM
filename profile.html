@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SAM Messenger - Настройки профиля</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background-color: #0e1621; color: #efeef1; margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            display: flex; justify-content: center; align-items: center; height: 100vh;
+        }
+        .profile-card {
+            background-color: #17212b; width: 360px; padding: 30px;
+            border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); text-align: center;
+        }
+        .profile-avatar {
+            width: 80px; height: 80px; border-radius: 50%; background: #2a94e6;
+            color: white; font-size: 36px; font-weight: bold; display: flex;
+            align-items: center; justify-content: center; margin: 0 auto 20px auto;
+        }
+        h3 { margin: 0 0 5px 0; color: #fff; }
+        p { color: #7f91a4; margin-bottom: 25px; font-size: 14px; }
+        .input-label { text-align: left; display: block; color: #5288c1; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+        .profile-input {
+            width: 100%; padding: 12px; background: #0e1621; border: 1px solid #24303f;
+            border-radius: 6px; color: white; outline: none; font-size: 15px; margin-bottom: 20px;
+        }
+        .profile-input:focus { border-color: #2481cc; }
+        .btn-save {
+            width: 100%; padding: 12px; background-color: #2481cc; color: white;
+            border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px;
+        }
+        .btn-save:hover { background-color: #2a94e6; }
+        .btn-back {
+            display: block; margin-top: 15px; color: #7f91a4; text-decoration: none; font-size: 14px;
+        }
+        .btn-back:hover { color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="profile-card">
+        <div class="profile-avatar" id="p-avatar">U</div>
+        <h3 id="p-display-name">Username</h3>
+        <p>Изменение настроек аккаунта</p>
+        
+        <label class="input-label">ИМЯ ПОЛЬЗОВАТЕЛЯ (НИК)</label>
+        <input type="text" id="nickname-input" class="profile-input" placeholder="Введите новый ник...">
+        
+        <button class="btn-save" onclick="saveProfile()">Сохранить изменения</button>
+        <a href="/chat" class="btn-back">← Назад к чатам</a>
+    </div>
+
+    <script>
+        const u = localStorage.getItem('sam_username');
+        const p = localStorage.getItem('sam_password');
+        if(!u || !p) window.location.href = '/';
+
+        document.getElementById('p-display-name').textContent = u;
+        document.getElementById('p-avatar').textContent = u.charAt(0).toUpperCase();
+        document.getElementById('nickname-input').value = u;
+
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+
+        ws.onopen = function() {
+            ws.send(JSON.stringify({ action: 'login', username: u, password: p }));
+        };
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'nickname_changed') {
+                localStorage.setItem('sam_username', data.new_name);
+                alert("Никнейм успешно изменен!");
+                window.location.href = '/chat';
+            } else if (data.type === 'error_msg') {
+                alert(data.text);
+            }
+        };
+
+        function saveProfile() {
+            const newNick = document.getElementById('nickname-input').value.trim();
+            if(!newNick) return alert("Ник не может быть пустым!");
+            if(newNick === u) return window.location.href = '/chat';
+            
+            ws.send(JSON.stringify({ action: 'change_nickname', new_nickname: newNick }));
+        }
+    </script>
+</body>
+</html>
