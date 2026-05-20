@@ -2,12 +2,18 @@ import asyncio
 import os
 import json
 import datetime
+import uuid
 import aiohttp
 from aiohttp import web
 import aiosqlite
 
 routes = web.RouteTableDef()
 DB_PATH = 'sam_database.db'
+UPLOAD_DIR = 'uploads'
+
+# Создаем папку для загрузок, если её нет
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
 
 active_connections = {}
 
@@ -71,6 +77,41 @@ async def chat_page(request):
 async def profile_page(request):
     return web.Response(text=load_html('profile.html'), content_type='text/html')
 
+# МАРШРУТ ДЛЯ ЗАГРУЗКИ ФАЙЛОВ (HTTP POST)
+@routes.post('/upload')
+async def upload_file(request):
+    reader = await request.multipart()
+    field = await reader.next()
+    
+    if field.name == 'file':
+        filename = field.filename
+        # Делаем имя уникальным, чтобы файлы не перезаписывали друг друга
+        ext = os.path.splitext(filename)[1]
+        unique_filename = f"{uuid.uuid4().hex}{ext}"
+        filepath = os.path.join(UPLOAD_DIR, unique_filename)
+        
+        size = 0
+        with open(filepath, 'wb') as f:
+            while True:
+                chunk = await field.read_chunk()
+                if not chunk:
+                    break
+                size += len(chunk)
+                f.write(chunk)
+                
+        # Возвращаем клиенту имя файла и его тип
+        is_image = field.headers.get('Content-Type', '').startswith('image/')
+        msg_type = 'image' if is_image else 'file'
+        
+        return web.json_response({
+            "success": True, 
+            "url": f"/uploads/{unique_filename}", 
+            "name": filename,
+            "msg_type": msg_type
+        })
+        
+    return web.json_response({"success": False, "error": "Файл не найден"})
+
 @routes.get('/ws')
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
@@ -112,7 +153,6 @@ async def websocket_handler(request):
                                         active_connections[ws]["role"] = db_role
                                         await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": db_role})
                                         
-                                        # Отправляем только те группы, где пользователь есть в участниках
                                         async with db.execute("SELECT room_name FROM room_members WHERE username = ?", (username,)) as c:
                                             groups = [r[0] for r in await c.fetchall()]
                                             
@@ -259,6 +299,10 @@ async def websocket_handler(request):
 
 app = web.Application()
 app.add_routes(routes)
+
+# Раздача статических загруженных файлов из папки uploads
+app.router.add_static('/uploads/', path=UPLOAD_DIR, name='uploads')
+
 app.on_startup.append(lambda a: init_db())
 
 if __name__ == '__main__':

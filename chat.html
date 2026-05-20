@@ -236,7 +236,11 @@
                 const previewEl = document.getElementById('p-' + data.room);
                 const timeEl = document.getElementById('t-' + data.room);
                 if (previewEl) {
-                    previewEl.textContent = data.msg_type === 'text' ? `${data.username}: ${data.content}` : `${data.username}: [Вложение]`;
+                    if (data.msg_type === 'text') {
+                        previewEl.textContent = `${data.username}: ${data.content}`;
+                    } else {
+                        previewEl.textContent = `${data.username}: [Вложение]`;
+                    }
                     if(timeEl) timeEl.textContent = data.time;
                 }
 
@@ -363,12 +367,32 @@
             const file = fileInput.files[0];
             if (!file || !currentRoom) return;
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                let mType = file.type.startsWith('image/') ? 'image' : 'file';
-                ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: JSON.stringify({ name: file.name, data: e.target.result }), msg_type: mType }));
-            };
-            reader.readAsDataURL(file);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const contentPayload = { name: data.name, url: data.url };
+                    ws.send(JSON.stringify({ 
+                        action: 'send_msg', 
+                        room: currentRoom, 
+                        content: JSON.stringify(contentPayload), 
+                        msg_type: data.msg_type 
+                    }));
+                } else {
+                    alert("Ошибка загрузки файла: " + data.error);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Не удалось загрузить файл на сервер.");
+            });
+
             fileInput.value = '';
         }
 
@@ -387,12 +411,28 @@
             
             let html = `<div class="msg-author">${msg.username}</div><div class="msg-body" id="content-${msg.id}">`;
             
-            if (msg.msg_type === 'text') html += document.createTextNode(msg.content).textContent;
-            else if (msg.msg_type === 'image') html += `<img src="${JSON.parse(msg.content).data}">`;
-            else if (msg.msg_type === 'file') {
-                const f = JSON.parse(msg.content);
-                html += `📎 <a href="${f.data}" download="${f.name}">${f.name}</a>`;
-            } else if (msg.msg_type === 'system') html += msg.content;
+            if (msg.msg_type === 'text') {
+                html += document.createTextNode(msg.content).textContent;
+            } else if (msg.msg_type === 'image' || msg.msg_type === 'file') {
+                try {
+                    // Пробуем распарсить JSON (для новых HTTP-загрузок)
+                    const fileData = JSON.parse(msg.content);
+                    if (msg.msg_type === 'image') {
+                        html += `<img src="${fileData.url}" alt="${fileData.name}">`;
+                    } else {
+                        html += `📎 <a href="${fileData.url}" download="${fileData.name}">${fileData.name}</a>`;
+                    }
+                } catch(e) {
+                    // Поддержка старого формата Base64 (если остался в истории)
+                    if (msg.msg_type === 'image') {
+                        html += `<img src="${msg.content}">`;
+                    } else {
+                        html += `📎 Старый файл (Base64)`;
+                    }
+                }
+            } else if (msg.msg_type === 'system') {
+                html += msg.content;
+            }
             
             html += `</div><div class="msg-time">${msg.time}</div>`;
             if (msg.msg_type !== 'system') {
@@ -403,8 +443,6 @@
             if(!isHistoryLoad) container.scrollTop = container.scrollHeight;
             else setTimeout(() => { container.scrollTop = container.scrollHeight; }, 10);
         }
-
-        function deleteMessage(id) { if(confirm("Удалить?")) ws.send(JSON.stringify({ action: 'delete_msg', msg_id: id })); }
     </script>
 </body>
 </html>
