@@ -9,7 +9,7 @@ class MainWindow(QMainWindow):
         self.browser = QWebEngineView()
         
         # Указываешь адрес запущенного сервера (локальный или на Render)
-        self.browser.setUrl(QUrl("http://127.0.0.1:8080/chat"))
+        self.browser.setUrl(QUrl("https://sam-dc1v.onrender.com"))
         self.setCentralWidget(self.browser)
         
         self.setWindowTitle('SAM Messenger Desktop')
