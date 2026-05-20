@@ -54,7 +54,23 @@
         .msg-row.my-row .msg-author { display: none; }
         .msg-body { font-size: 14.5px; line-height: 1.4; word-break: break-word; padding-right: 40px; }
         .msg-body img { max-width: 100%; max-height: 300px; border-radius: 5px; margin-top: 4px; display: block; }
-        .msg-body a { color: #5288c1; text-decoration: none; }
+        
+        /* Стили для новых плееров */
+        .msg-body audio { width: 100%; max-width: 280px; margin-top: 6px; display: block; }
+        .msg-body video { max-width: 100%; max-height: 250px; border-radius: 6px; margin-top: 6px; display: block; background: #000; }
+        
+        /* Кнопка мгновенного скачивания */
+        .download-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            margin-top: 8px; padding: 6px 12px; background: #24303f;
+            color: #fff !important; text-decoration: none; font-size: 12px;
+            border-radius: 4px; border: 1px solid #2b394a; font-weight: 500;
+            transition: background 0.2s; width: fit-content;
+        }
+        .download-btn:hover { background: #2b394a; }
+        .msg-row.my-row .download-btn { background: #1c354e; border-color: #234363; }
+        .msg-row.my-row .download-btn:hover { background: #234363; }
+
         .msg-time { position: absolute; right: 8px; bottom: 4px; font-size: 11px; color: #7f91a4; }
         
         .admin-actions { display: none; margin-top: 5px; font-size: 11px; gap: 10px; border-top: 1px solid #24303f; padding-top: 4px; }
@@ -238,8 +254,14 @@
                 if (previewEl) {
                     if (data.msg_type === 'text') {
                         previewEl.textContent = `${data.username}: ${data.content}`;
+                    } else if (data.msg_type === 'image') {
+                        previewEl.textContent = `${data.username}: [Фотография]`;
+                    } else if (data.msg_type === 'audio') {
+                        previewEl.textContent = `${data.username}: [Аудиозапись]`;
+                    } else if (data.msg_type === 'video') {
+                        previewEl.textContent = `${data.username}: [Видеозапись]`;
                     } else {
-                        previewEl.textContent = `${data.username}: [Вложение]`;
+                        previewEl.textContent = `${data.username}: [Файл]`;
                     }
                     if(timeEl) timeEl.textContent = data.time;
                 }
@@ -413,17 +435,27 @@
             
             if (msg.msg_type === 'text') {
                 html += document.createTextNode(msg.content).textContent;
-            } else if (msg.msg_type === 'image' || msg.msg_type === 'file') {
+            } else if (['image', 'file', 'audio', 'video'].includes(msg.msg_type)) {
                 try {
-                    // Пробуем распарсить JSON (для новых HTTP-загрузок)
                     const fileData = JSON.parse(msg.content);
+                    
                     if (msg.msg_type === 'image') {
                         html += `<img src="${fileData.url}" alt="${fileData.name}">`;
+                    } else if (msg.msg_type === 'audio') {
+                        html += `🎵 <b>${fileData.name}</b>`;
+                        html += `<audio controls src="${fileData.url}"></audio>`;
+                    } else if (msg.msg_type === 'video') {
+                        html += `🎥 <b>${fileData.name}</b>`;
+                        html += `<video controls src="${fileData.url}"></video>`;
                     } else {
-                        html += `📎 <a href="${fileData.url}" download="${fileData.name}">${fileData.name}</a>`;
+                        html += `📎 <b>${fileData.name}</b>`;
                     }
+                    
+                    // Универсальная кнопка "Скачать"
+                    html += `<br><a href="${fileData.url}" download="${fileData.name}" class="download-btn">📥 Скачать</a>`;
+                    
                 } catch(e) {
-                    // Поддержка старого формата Base64 (если остался в истории)
+                    // Обработка старого формата Base64 (если остался в истории бд)
                     if (msg.msg_type === 'image') {
                         html += `<img src="${msg.content}">`;
                     } else {
@@ -443,6 +475,8 @@
             if(!isHistoryLoad) container.scrollTop = container.scrollHeight;
             else setTimeout(() => { container.scrollTop = container.scrollHeight; }, 10);
         }
+
+        function deleteMessage(id) { if(confirm("Удалить?")) ws.send(JSON.stringify({ action: 'delete_msg', msg_id: id })); }
     </script>
 </body>
 </html>

@@ -3,6 +3,7 @@ import os
 import json
 import datetime
 import uuid
+import hashlib
 import aiohttp
 from aiohttp import web
 import aiosqlite
@@ -11,11 +12,14 @@ routes = web.RouteTableDef()
 DB_PATH = 'sam_database.db'
 UPLOAD_DIR = 'uploads'
 
-# Создаем папку для загрузок, если её нет
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
 active_connections = {}
+
+# Функция для создания SHA-256 хеша пароля
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
@@ -51,11 +55,14 @@ async def init_db():
                 UNIQUE(room_name, username)
             )
         ''')
+        
+        # Создаем админа Grom с захешированным паролем, если его нет
         async with db.execute("SELECT * FROM users WHERE username = 'Grom'") as cursor:
             if not await cursor.fetchone():
+                hashed_admin_pass = hash_password('12344321')
                 await db.execute(
                     "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-                    ('Grom', '12344321', 'admin')
+                    ('Grom', hashed_admin_pass, 'admin')
                 )
         await db.commit()
 
@@ -77,7 +84,6 @@ async def chat_page(request):
 async def profile_page(request):
     return web.Response(text=load_html('profile.html'), content_type='text/html')
 
-# МАРШРУТ ДЛЯ ЗАГРУЗКИ ФАЙЛОВ (HTTP POST)
 @routes.post('/upload')
 async def upload_file(request):
     reader = await request.multipart()
@@ -85,23 +91,28 @@ async def upload_file(request):
     
     if field.name == 'file':
         filename = field.filename
-        # Делаем имя уникальным, чтобы файлы не перезаписывали друг друга
-        ext = os.path.splitext(filename)[1]
+        ext = os.path.splitext(filename)[1].lower()
         unique_filename = f"{uuid.uuid4().hex}{ext}"
         filepath = os.path.join(UPLOAD_DIR, unique_filename)
         
-        size = 0
         with open(filepath, 'wb') as f:
             while True:
                 chunk = await field.read_chunk()
                 if not chunk:
                     break
-                size += len(chunk)
                 f.write(chunk)
                 
-        # Возвращаем клиенту имя файла и его тип
-        is_image = field.headers.get('Content-Type', '').startswith('image/')
-        msg_type = 'image' if is_image else 'file'
+        mime_type = field.headers.get('Content-Type', '')
+        
+        # Автоматически определяем тип медиа для плеера
+        if mime_type.startswith('image/'):
+            msg_type = 'image'
+        elif mime_type.startswith('audio/') or ext in ['.mp3', '.wav', '.ogg', '.m4a']:
+            msg_type = 'audio'
+        elif mime_type.startswith('video/') or ext in ['.mp4', '.webm', '.mov']:
+            msg_type = 'video'
+        else:
+            msg_type = 'file'
         
         return web.json_response({
             "success": True, 
@@ -130,11 +141,14 @@ async def websocket_handler(request):
                     if not username or not password:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Заполните поля!"})
                         continue
+                    
+                    # Хешируем полученный от пользователя пароль
+                    hashed_pass = hash_password(password)
                         
                     async with aiosqlite.connect(DB_PATH) as db:
                         if action == 'register':
                             try:
-                                await db.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+                                await db.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_pass))
                                 await db.commit()
                                 await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": "user"})
                                 active_connections[ws]["username"] = username
@@ -148,7 +162,8 @@ async def websocket_handler(request):
                                     db_role, is_banned, db_password = row
                                     if is_banned:
                                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
-                                    elif db_password == password:
+                                    # Сравниваем захешированные пароли
+                                    elif db_password == hashed_pass:
                                         active_connections[ws]["username"] = username
                                         active_connections[ws]["role"] = db_role
                                         await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": db_role})
@@ -299,10 +314,7 @@ async def websocket_handler(request):
 
 app = web.Application()
 app.add_routes(routes)
-
-# Раздача статических загруженных файлов из папки uploads
 app.router.add_static('/uploads/', path=UPLOAD_DIR, name='uploads')
-
 app.on_startup.append(lambda a: init_db())
 
 if __name__ == '__main__':
