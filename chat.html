@@ -141,13 +141,15 @@
 <body>
     <div id="main-app">
         <div id="side-menu-overlay" onclick="toggleMenu()"></div>
-        <div id="side-menu">
+            <div id="side-menu">
             <div class="menu-profile-header">
                 <div class="menu-avatar" id="menu-avatar-letter">U</div>
                 <div class="menu-name" id="menu-username">Username</div>
                 <div class="menu-status">SAM Личный кабинет</div>
             </div>
             <div class="menu-items">
+                <div class="menu-item" onclick="window.location.href='/apps'"><span class="menu-icon">📥</span> Скачать приложение</div>
+                
                 <div class="menu-item" onclick="window.location.href='/profile'"><span class="menu-icon">✏️</span> Изменить ник</div>
                 <div class="menu-item" onclick="openCreateGroupModal()"><span class="menu-icon">👥</span> Создать группу</div>
                 <div class="menu-item" onclick="openContactsModal()"><span class="menu-icon">👤</span> Контакты</div>

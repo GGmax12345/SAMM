@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Скачать SAM Messenger</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background-color: #0e1621; color: #efeef1; margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; padding: 20px;
+        }
+        .container { text-align: center; max-width: 600px; width: 100%; }
+        h1 { margin-bottom: 10px; color: #fff; font-size: 28px; }
+        .subtitle { color: #7f91a4; margin-bottom: 40px; font-size: 16px; }
+        .cards-grid { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+        .card {
+            background-color: #17212b; border: 1px solid #10171e; border-radius: 12px;
+            padding: 30px 20px; width: 260px; display: flex; flex-direction: column;
+            align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .card:hover { transform: translateY(-5px); border-color: #5288c1; }
+        .icon { font-size: 50px; margin-bottom: 15px; }
+        .platform-name { font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 10px; }
+        .description { font-size: 13px; color: #7f91a4; text-align: center; margin-bottom: 25px; height: 40px; }
+        .download-btn {
+            background-color: #2481cc; color: white; text-decoration: none;
+            padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 14px;
+            transition: background 0.2s; width: 100%; text-align: center;
+        }
+        .download-btn:hover { background-color: #2a94e6; }
+        .back-link { display: inline-block; margin-top: 40px; color: #5288c1; text-decoration: none; font-size: 14px; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Установите SAM Messenger</h1>
+        <div class="subtitle">Скачайте официальное приложение для вашего устройства</div>
+        <div class="cards-grid">
+            <div class="card">
+                <div class="icon">🤖</div>
+                <div class="platform-name">Android</div>
+                <div class="description">Мобильная версия для смартфона в формате APK-файла</div>
+               <a href="https://disk.yandex.ru/d/твой_код_файла" target="_blank" class="download-btn">Скачать .APK</a>
+            </div>
+            <div class="card">
+                <div class="icon">💻</div>
+                <div class="platform-name">Windows ПК</div>
+                <div class="description">Удобный лаунчер для запуска мессенджера в отдельном окне</div>
+                <a href="/uploads/sam_pc_version.zip" download class="download-btn">Скачать .EXE</a>
+            </div>
+        </div>
+        <a href="/chat" class="back-link">⬅ Вернуться в чат</a>
+    </div>
+</body>
+</html>
