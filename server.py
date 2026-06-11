@@ -24,8 +24,16 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 # Инициализация базы данных PostgreSQL
+# Инициализация базы данных PostgreSQL
 async def init_db(app):
-    # Если мы подключаемся не к локальному компьютеру, принудительно запрашиваем SSL-соединение
+    global DATABASE_URL
+    
+    # Защита: если Render почему-то не передал переменную, а мы на сервере,
+    # мы принудительно заставим его выдать ошибку конфигурации, а не стучаться в localhost
+    if 'RENDER' in os.environ and ( "localhost" in DATABASE_URL or "127.0.0.1" in DATABASE_URL ):
+        print("КРИТИЧЕСКАЯ ОШИБКА: Переменная DATABASE_URL не задана в настройках Render Environment!")
+    
+    # Если мы подключаемся к внешней базе данных, принудительно запрашиваем SSL-соединение
     if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
         pool = await asyncpg.create_pool(DATABASE_URL, ssl="require")
     else:
