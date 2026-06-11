@@ -25,7 +25,12 @@ def hash_password(password: str) -> str:
 
 # Инициализация базы данных PostgreSQL
 async def init_db(app):
-    pool = await asyncpg.create_pool(DATABASE_URL)
+    # Если мы подключаемся не к локальному компьютеру, принудительно запрашиваем SSL-соединение
+    if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
+        pool = await asyncpg.create_pool(DATABASE_URL, ssl="require")
+    else:
+        pool = await asyncpg.create_pool(DATABASE_URL)
+        
     app['db_pool'] = pool
     
     async with pool.acquire() as conn:
@@ -326,7 +331,7 @@ app = web.Application()
 app.add_routes(routes)
 app.router.add_static('/uploads/', path=UPLOAD_DIR, name='uploads')
 
-# Правильный жизненный цикл пула соединений в aiohttp
+# Жизненный цикл пула соединений в aiohttp
 app.on_startup.append(init_db)
 app.on_cleanup.append(close_db)
 
