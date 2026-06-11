@@ -10,7 +10,7 @@ import asyncpg
 
 routes = web.RouteTableDef()
 # На Render ссылка на базу данных автоматически передаётся в переменную DATABASE_URL
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/sam_db')
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://sam_rf61_user:yn0Vv1yOgyQYhHCCyfJejFjVlIQFyeSH@dpg-d8li4purnols73evc1mg-a/sam_rf61')
 UPLOAD_DIR = 'uploads'
 
 # Создаем папку для загрузок, если её нет (учти, на бесплатном Render файлы тут временные)
