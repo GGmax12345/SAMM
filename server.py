@@ -23,6 +23,13 @@ active_connections = {}
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
+def get_ws_by_username(username):
+    """Поиск активного веб-сокета пользователя по его нику для звонков"""
+    for ws, info in active_connections.items():
+        if info.get('username') == username:
+            return ws
+    return None
+
 # Инициализация базы данных PostgreSQL
 async def init_db(app):
     global DATABASE_URL
@@ -89,7 +96,8 @@ async def init_db(app):
 
 # Функция для закрытия пула соединений при остановке сервера
 async def close_db(app):
-    await app['db_pool'].close()
+    if 'db_pool' in app:
+        await app['db_pool'].close()
 
 # Функция для чтения HTML-файлов из папки проекта
 def load_html(filename):
@@ -123,7 +131,7 @@ async def upload_file(request):
     reader = await request.multipart()
     field = await reader.next()
     
-    if field.name == 'file':
+    if field and field.name == 'file':
         filename = field.filename
         ext = os.path.splitext(filename)[1].lower()
         unique_filename = f"{uuid.uuid4().hex}{ext}"
@@ -168,11 +176,11 @@ async def websocket_handler(request):
     
     try:
         async_pg_conn = await pool.acquire()
-        # Итерируемся напрямую без async with
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 data = json.loads(msg.data)
                 action = data.get('action')
+                sender_name = active_connections[ws]["username"]
                 
                 if action in ['login', 'register']:
                     username = data.get('username', '').strip()
@@ -328,9 +336,43 @@ async def websocket_handler(request):
                             if info["username"] == target_user:
                                 await client.send_json({"type": "banned"})
                                 await client.close()
+
+                # --- ДОБАВЛЕННЫЙ СИГНАЛИНГ ДЛЯ ЗВОНКОВ (WebRTC) ---
+                elif action == 'call_user':
+                    target = data.get('target')
+                    target_ws = get_ws_by_username(target)
+                    if target_ws:
+                        await target_ws.send_json({
+                            "type": "incoming_call",
+                            "from": sender_name
+                        })
+                    else:
+                        await ws.send_json({"type": "error_msg", "text": "Пользователь сейчас оффлайн"})
+
+                elif action == 'call_response':
+                    target = data.get('target')
+                    accepted = data.get('accepted')
+                    target_ws = get_ws_by_username(target)
+                    if target_ws:
+                        await target_ws.send_json({
+                            "type": "call_response",
+                            "from": sender_name,
+                            "accepted": accepted
+                        })
+
+                elif action == 'webrtc_signal':
+                    target = data.get('target')
+                    target_ws = get_ws_by_username(target)
+                    if target_ws:
+                        await target_ws.send_json({
+                            "type": "webrtc_signal",
+                            "from": sender_name,
+                            "signal": data.get('signal')
+                        })
     finally:
         active_connections.pop(ws, None)
-        await pool.release(async_pg_conn)
+        if 'async_pg_conn' in locals():
+            await pool.release(async_pg_conn)
     return ws
 
 app = web.Application()
