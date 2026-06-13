@@ -37,7 +37,7 @@
         }
         #side-menu.open { left: 0; }
         .menu-profile-header { padding: 30px 20px; background-color: #242f3d; border-bottom: 1px solid #10171e; }
-        .menu-avatar { width: 60px; height: 60px; border-radius: 50%; background: #2a94e6; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(42, 148, 230, 0.3); }
+        .menu-avatar { width: 60px; height: 60px; border-radius: 50%; background: #2a94e6; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(42, 148, 230, 0.3); background-size: cover; background-position: center; }
         .menu-name { font-weight: 600; color: #fff; font-size: 17px; }
         .menu-status { font-size: 13px; color: #5288c1; margin-top: 4px; font-weight: 500;}
         .menu-items { padding: 10px 0; flex-grow: 1; overflow-y: auto; }
@@ -65,7 +65,17 @@
         .room-item:hover { background-color: #202b36; }
         .room-item:active { background-color: #24303f; }
         .room-item.active { background-color: #2b394a; }
-        .avatar { width: 52px; height: 52px; border-radius: 50%; background: #2f6ea5; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; text-transform: uppercase; flex-shrink: 0; transition: transform 0.2s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        
+        /* Обёртка аватарки и статус-индикатор */
+        .avatar-wrapper { position: relative; display: inline-block; flex-shrink: 0; }
+        .avatar { width: 52px; height: 52px; border-radius: 50%; background: #2f6ea5; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; text-transform: uppercase; flex-shrink: 0; transition: transform 0.2s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.2); background-size: cover; background-position: center; }
+        .online-dot { 
+            position: absolute; bottom: 1px; right: 1px; width: 13px; height: 13px; 
+            background-color: #4caf50; border: 2.5px solid #17212b; border-radius: 50%; 
+            display: none; z-index: 5;
+        }
+        .room-item.online .online-dot { display: block; }
+
         .room-info { flex-grow: 1; min-width: 0; }
         .room-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .room-name { font-weight: 600; color: #fff; font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -225,10 +235,25 @@
             </div>
             <div class="menu-items">
                 <div class="menu-item" onclick="window.location.href='/apps'"><span class="menu-icon">📥</span> Скачать приложение</div>
-                <div class="menu-item" onclick="window.location.href='/profile'"><span class="menu-icon">✏️</span> Изменить ник</div>
+                <div class="menu-item" onclick="openProfileModal()"><span class="menu-icon">✏️</span> Профиль и Аватарка</div>
                 <div class="menu-item" onclick="openCreateGroupModal()"><span class="menu-icon">👥</span> Создать группу</div>
                 <div class="menu-item" onclick="openContactsModal()"><span class="menu-icon">👤</span> Контакты</div>
                 <div class="menu-item" onclick="localStorage.clear(); window.location.href='/'"><span class="menu-icon">🚪</span> Выйти</div>
+            </div>
+        </div>
+
+        <!-- МОДАЛКА НАСТРОЙКИ ПРОФИЛЯ -->
+        <div id="profile-modal" class="modal-overlay">
+            <div class="modal-box">
+                <h3>Настройки профиля</h3>
+                <label style="color: #7f91a4; font-size: 13px; display: block; margin-bottom: 6px;">Ваш никнейм:</label>
+                <input type="text" id="profile-nickname" class="modal-input" placeholder="Введите новый ник...">
+                <label style="color: #7f91a4; font-size: 13px; display: block; margin-bottom: 6px;">URL-ссылка на аватарку:</label>
+                <input type="text" id="profile-avatar-url" class="modal-input" placeholder="https://example.com/photo.jpg">
+                <div class="modal-btns">
+                    <button class="btn-cancel" onclick="closeModals()">Отмена</button>
+                    <button class="btn-primary" onclick="confirmUpdateProfile()">Сохранить</button>
+                </div>
             </div>
         </div>
 
@@ -346,6 +371,17 @@
         let callSeconds = 0;
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+        // Хелпер рендеринга аватарок (ссылка/текст)
+        function applyAvatarStyle(el, name, avatarUrl) {
+            if (avatarUrl && avatarUrl.trim() !== '') {
+                el.style.backgroundImage = `url('${avatarUrl}')`;
+                el.textContent = '';
+            } else {
+                el.style.backgroundImage = 'none';
+                el.textContent = name.charAt(0).toUpperCase();
+            }
+        }
+
         ws.onopen = function() {
             ws.send(JSON.stringify({ action: 'login', username: u, password: p }));
         };
@@ -358,7 +394,11 @@
                     myUsername = data.username;
                     myRole = data.role;
                     document.getElementById('menu-username').textContent = myUsername;
-                    document.getElementById('menu-avatar-letter').textContent = myUsername.charAt(0).toUpperCase();
+                    
+                    // Подгружаем аватарку устройства из localStorage, если бэкенд её не прислал
+                    const cachedAvatar = data.avatar || localStorage.getItem('sam_avatar') || '';
+                    applyAvatarStyle(document.getElementById('menu-avatar-letter'), myUsername, cachedAvatar);
+                    
                     if (myRole === 'admin') document.getElementById('messages').classList.add('admin-active');
                 } else {
                     window.location.href = '/';
@@ -428,6 +468,14 @@
             // --- РЕНДЕРИНГ РЕЗУЛЬТАТОВ ПОИСКА ---
             else if (data.type === 'search_results') {
                 handleSearchResults(data.results);
+            }
+            // --- СЕРВЕРНОЕ ОБНОВЛЕНИЕ СТАТУСА ОНЛАЙН ---
+            else if (data.type === 'user_status') {
+                const targets = document.querySelectorAll(`[data-peer-username="${data.username}"]`);
+                targets.forEach(el => {
+                    if (data.status === 'online') el.classList.add('online');
+                    else el.classList.remove('online');
+                });
             }
             else if (data.type === 'clear_chat') {
                 document.getElementById('messages').innerHTML = '';
@@ -507,7 +555,7 @@
             }
         });
 
-        // Функция обработки результатов поиска
+        // Функция обработки результатов поиска[cite: 2]
         function handleSearchResults(results) {
             const roomListEl = document.getElementById('sidebar-room-list');
             roomListEl.innerHTML = '';
@@ -525,14 +573,17 @@
                 const bgStr = isUser ? 'background:#b84343' : '';
                 const typeLabel = isUser ? 'Пользователь' : 'Группа';
 
-                // Записываем параметры поиска в дата-атрибуты для обработки делегированием
                 div.setAttribute('data-search-item', 'true');
                 div.setAttribute('data-item-type', item.type);
                 div.setAttribute('data-room-title', item.name);
                 div.setAttribute('data-room-id', item.name);
+                if (isUser) div.setAttribute('data-peer-username', item.name);
 
                 div.innerHTML = `
-                    <div class="avatar" style="${bgStr}">${item.name.charAt(0).toUpperCase()}</div>
+                    <div class="avatar-wrapper">
+                        <div class="avatar" style="${bgStr}">${item.name.charAt(0).toUpperCase()}</div>
+                        <div class="online-dot"></div>
+                    </div>
                     <div class="room-info">
                         <div class="room-meta"><span class="room-name">${item.name}</span></div>
                         <div class="room-preview">${typeLabel}</div>
@@ -542,10 +593,10 @@
             });
         }
 
-        // ЖЕЛЕЗОБЕТОННЫЙ ОБРАБОТЧИК КЛИКОВ (ДЕЛЕГИРОВАНИЕ)
+        // ОБРАБОТЧИК КЛИКОВ ЧЕРЕЗ ДЕЛЕГИРОВАНИЕ[cite: 2]
         document.getElementById('sidebar-room-list').addEventListener('click', function(e) {
             const item = e.target.closest('.room-item');
-            if (!item) return; // Кликнули мимо элементов списка
+            if (!item) return;
 
             const roomId = item.getAttribute('data-room-id');
             const roomTitle = item.getAttribute('data-room-title');
@@ -553,7 +604,6 @@
             const itemType = item.getAttribute('data-item-type');
 
             if (isSearchItem) {
-                // Клик по результату поиска: чистим строку и возвращаем исходный список на фон
                 const roomListEl = document.getElementById('sidebar-room-list');
                 if (defaultChatsHTML) {
                     roomListEl.innerHTML = defaultChatsHTML;
@@ -568,7 +618,6 @@
                     changeRoom(roomId, roomTitle);
                 }
             } else {
-                // Обычный клик по комнате из списка
                 changeRoom(roomId, roomTitle);
             }
         });
@@ -601,6 +650,40 @@
                 modal.classList.remove('show');
                 setTimeout(() => modal.style.display = 'none', 200);
             });
+        }
+
+        // Управление профилем (Новый SPA функционал)
+        function openProfileModal() {
+            toggleMenu();
+            document.getElementById('profile-nickname').value = myUsername;
+            document.getElementById('profile-avatar-url').value = localStorage.getItem('sam_avatar') || '';
+            openModal('profile-modal');
+        }
+
+        function confirmUpdateProfile() {
+            const newName = document.getElementById('profile-nickname').value.trim();
+            const newAvatar = document.getElementById('profile-avatar-url').value.trim();
+            
+            if(!newName) return alert("Никнейм не может быть пустым!");
+
+            // Запоминание на текущем устройстве (localStorage)
+            localStorage.setItem('sam_username', newName);
+            localStorage.setItem('sam_avatar', newAvatar);
+            
+            myUsername = newName;
+            document.getElementById('menu-username').textContent = myUsername;
+            applyAvatarStyle(document.getElementById('menu-avatar-letter'), myUsername, newAvatar);
+            
+            // Отправляем изменения на сервер, чтобы другие клиенты зафиксировали изменения
+            if(ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ 
+                    action: 'update_profile', 
+                    username: newName, 
+                    avatar: newAvatar 
+                }));
+            }
+            
+            closeModals();
         }
 
         function openCreateGroupModal() { toggleMenu(); openModal('group-modal'); }
@@ -641,14 +724,17 @@
             const div = document.createElement('div');
             div.className = 'room-item';
             div.id = 'room-' + roomId;
-            
-            // Задаем параметры для корректного переключения комнат по клику
+
             div.setAttribute('data-room-id', roomId);
             div.setAttribute('data-room-title', title);
             div.setAttribute('data-search-item', 'false');
+            if (isPrivate) div.setAttribute('data-peer-username', title);
 
             div.innerHTML = `
-                <div class="avatar" style="${bgStr}">${title.charAt(0).toUpperCase()}</div>
+                <div class="avatar-wrapper">
+                    <div class="avatar" style="${bgStr}">${title.charAt(0).toUpperCase()}</div>
+                    <div class="online-dot"></div>
+                </div>
                 <div class="room-info">
                     <div class="room-meta"><span class="room-name">${title}</span><span class="room-time" id="t-${roomId}"></span></div>
                     <div class="room-preview" id="p-${roomId}">Нет сообщений</div>
@@ -681,7 +767,7 @@
             } else {
                 document.getElementById('add-member-btn').style.display = 'none';
                 document.getElementById('call-user-btn').style.display = 'block';
-                currentChatPartner = titleText; // Запоминаем чистый ник оппонента
+                currentChatPartner = titleText; 
             }
             
             document.getElementById('layout-wrapper').classList.add('chat-open');
@@ -726,7 +812,7 @@
             })
             .catch(err => {
                 console.error(err);
-                alert("Не удалось загрузить файл на server.");
+                alert("Не удалось загрузить файл на сервер.");
             });
             fileInput.value = '';
         }
