@@ -336,6 +336,7 @@
         let currentRoom = null;
         let currentChatPartner = null; // Храним чистый ник собеседника для ЛС
         let renderedRooms = new Set();
+        let defaultChatsHTML = ''; // Переменная хранения списка комнат по умолчанию при поиске
 
         // Переменные WebRTC
         let localStream = null;
@@ -424,6 +425,51 @@
                     renderMessage(data, data.history);
                 }
             }
+            // --- РЕНДЕРИНГ РЕЗУЛЬТАТОВ ПОИСКА ---
+            else if (data.type === 'search_results') {
+                const roomListEl = document.getElementById('sidebar-room-list');
+                roomListEl.innerHTML = '';
+                
+                if (data.results.length === 0) {
+                    roomListEl.innerHTML = '<div style="padding: 16px; color: #7f91a4; text-align: center; font-size: 14.5px;">Ничего не найдено</div>';
+                    return;
+                }
+
+                data.results.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'room-item';
+                    
+                    const isUser = item.type === 'user';
+                    const bgStr = isUser ? 'background:#b84343' : '';
+                    const typeLabel = isUser ? 'Пользователь' : 'Группа';
+
+                    div.innerHTML = `
+                        <div class="avatar" style="${bgStr}">${item.name.charAt(0).toUpperCase()}</div>
+                        <div class="room-info">
+                            <div class="room-meta"><span class="room-name">${item.name}</span></div>
+                            <div class="room-preview">${typeLabel}</div>
+                        </div>
+                    `;
+
+                    div.onclick = () => {
+                        // Возвращаем дефолтный список на фон, сбрасываем строку
+                        if (defaultChatsHTML) {
+                            roomListEl.innerHTML = defaultChatsHTML;
+                            defaultChatsHTML = '';
+                        }
+                        document.querySelector('.search-bar').value = '';
+
+                        // Открываем чат в зависимости от типа объекта
+                        if (isUser) {
+                            startPrivateChat(item.name);
+                        } else {
+                            addRoomToSidebar(item.name, false);
+                            changeRoom(item.name, item.name);
+                        }
+                    };
+                    roomListEl.appendChild(div);
+                });
+            }
             else if (data.type === 'clear_chat') {
                 document.getElementById('messages').innerHTML = '';
             }
@@ -479,6 +525,28 @@
                 }
             }
         };
+
+        // ОТСЛЕЖИВАНИЕ ПОИСКОВОЙ СТРОКИ
+        document.querySelector('.search-bar').addEventListener('input', function(e) {
+            const query = e.target.value.trim();
+            const roomListEl = document.getElementById('sidebar-room-list');
+
+            if (query === '') {
+                if (defaultChatsHTML) {
+                    roomListEl.innerHTML = defaultChatsHTML;
+                    defaultChatsHTML = '';
+                }
+                return;
+            }
+
+            if (!defaultChatsHTML) {
+                defaultChatsHTML = roomListEl.innerHTML;
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'search', query: query }));
+            }
+        });
 
         // Логика переключения меню и плавного появления окон
         function toggleMenu() {
@@ -570,7 +638,8 @@
                 if(oldEl) oldEl.classList.remove('active');
             }
             currentRoom = roomId;
-            document.getElementById('room-' + currentRoom).classList.add('active');
+            const targetRoomEl = document.getElementById('room-' + currentRoom);
+            if(targetRoomEl) targetRoomEl.classList.add('active');
             
             document.getElementById('main-chat-header').style.display = 'flex';
             document.getElementById('main-input-panel').style.display = 'flex';
