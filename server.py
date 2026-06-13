@@ -133,7 +133,7 @@ async def search_handler(request):
         return web.json_response([])
 
     pool = request.app['db_pool']
-    search_pattern = f"%{query}%"
+    search_pattern = f"{query}%"
 
     try:
         users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
