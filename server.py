@@ -55,7 +55,6 @@ async def init_db(app):
         
     app['db_pool'] = pool
     
-    # Создаем таблицы через дефолтный пул
     async with pool.acquire() as conn:
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -126,7 +125,7 @@ async def profile_page(request):
 async def apps_page(request):
     return web.Response(text=load_html('apps.html'), content_type='text/html')
 
-# --- ИСПРАВЛЕННЫЙ И БЕЗОПАСНЫЙ ПОИСК ЧАТОВ И ПОЛЬЗОВАТЕЛЕЙ ---
+# --- ПОИСК ЧЕРЕЗ HTTP API (FETCH) ---
 @routes.get('/api/search')
 async def search_handler(request):
     query = request.query.get('q', '').strip()
@@ -137,13 +136,8 @@ async def search_handler(request):
     search_pattern = f"%{query}%"
 
     try:
-        # Ищем уникальных пользователей и уникальные группы одной выборкой
-        # Ранг (type) поможет фронтенду покрасить кружки в нужный цвет (как на скриншотах)
-        users_query = "SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10"
-        rooms_query = "SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 LIMIT 10"
-        
-        users_rows = await pool.fetch(users_query, search_pattern)
-        rooms_rows = await pool.fetch(rooms_query, search_pattern)
+        users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
+        rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 LIMIT 10", search_pattern)
         
         results = []
         for r in users_rows:
@@ -153,7 +147,7 @@ async def search_handler(request):
             
         return web.json_response(results)
     except Exception as e:
-        print(f"Ошибка поиска: {e}")
+        print(f"Ошибка HTTP поиска: {e}")
         return web.json_response({"error": "Ошибка сервера при поиске"}, status=500)
 
 # --- ЗАГРУЗКА МЕДИАФАЙЛОВ ---
@@ -262,6 +256,26 @@ async def websocket_handler(request):
                     users = [r['username'] for r in users_rows]
                     await ws.send_json({"type": "user_list", "users": users})
 
+                # --- ПОИСК ЧЕРЕЗ WEBSOCKET ---
+                elif action == 'search':
+                    query = data.get('query', '').strip()
+                    if query:
+                        search_pattern = f"%{query}%"
+                        try:
+                            users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
+                            rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 LIMIT 10", search_pattern)
+                            
+                            results = []
+                            for r in users_rows:
+                                results.append({"name": r['name'], "type": r['type']})
+                            for r in rooms_rows:
+                                results.append({"name": r['name'], "type": r['type']})
+                                
+                            await ws.send_json({"type": "search_results", "results": results})
+                        except Exception as e:
+                            print(f"Ошибка WebSocket поиска: {e}")
+                            await ws.send_json({"type": "error_msg", "text": "Ошибка при поиске"})
+
                 elif action == 'create_group':
                     group_name = data.get('name', '').strip()
                     if group_name:
@@ -293,7 +307,6 @@ async def websocket_handler(request):
                     if not new_username or new_username == old_username: continue
                     
                     try:
-                        # Для транзакций кратковременно берем чистое соединение
                         async with pool.acquire() as transaction_conn:
                             async with transaction_conn.transaction():
                                 await transaction_conn.execute("UPDATE users SET username = $1 WHERE username = $2", new_username, old_username)
