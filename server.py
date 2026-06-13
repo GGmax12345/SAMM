@@ -4,22 +4,25 @@ import json
 import datetime
 import uuid
 import hashlib
+import sys
+import ssl
 import aiohttp
 from aiohttp import web
 import asyncpg
 
 routes = web.RouteTableDef()
-# На Render ссылка на базу данных автоматически передаётся в переменную DATABASE_URL
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/sam_db')
 UPLOAD_DIR = 'uploads'
 
-# Создаем папку для загрузок, если её нет (учти, на бесплатном Render файлы тут временные)
+# Исправление багов asyncio с сетью на Windows при локальном тестировании
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
 active_connections = {}
 
-# Функция для создания SHA-256 хеша пароля
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
@@ -34,21 +37,26 @@ def get_ws_by_username(username):
 async def init_db(app):
     global DATABASE_URL
     
-    # Защита: если Render почему-то не передал переменную, а мы на сервере,
-    # мы принудительно заставим его выдать ошибку конфигурации, а не стучаться в localhost
     if 'RENDER' in os.environ and ("localhost" in DATABASE_URL or "127.0.0.1" in DATABASE_URL):
         print("КРИТИЧЕСКАЯ ОШИБКА: Переменная DATABASE_URL не задана в настройках Render Environment!")
     
-    # Если мы подключаемся к внешней базе данных, принудительно запрашиваем SSL-соединение
+    # Решаем проблему Render: asyncpg требует префикс postgresql:// вместо postgres://
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+    # Настройка безопасного SSL-соединения для облака
     if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
-        pool = await asyncpg.create_pool(DATABASE_URL, ssl="require")
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_context)
     else:
         pool = await asyncpg.create_pool(DATABASE_URL)
         
     app['db_pool'] = pool
     
+    # Создаем таблицы через дефолтный пул
     async with pool.acquire() as conn:
-        # Таблица пользователей
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -58,7 +66,6 @@ async def init_db(app):
                 is_banned INTEGER DEFAULT 0
             )
         ''')
-        # Таблица сообщений
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL PRIMARY KEY,
@@ -69,14 +76,12 @@ async def init_db(app):
                 timestamp TEXT NOT NULL
             )
         ''')
-        # Таблица комнат
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS rooms (
                 name TEXT PRIMARY KEY,
                 type TEXT DEFAULT 'group'
             )
         ''')
-        # Таблица участников комнат
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS room_members (
                 room_name TEXT,
@@ -85,7 +90,6 @@ async def init_db(app):
             )
         ''')
         
-        # Создаем админа Grom с захешированным паролем, если его нет
         row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Grom'")
         if not row:
             hashed_admin_pass = hash_password('12344321')
@@ -94,12 +98,10 @@ async def init_db(app):
                 'Grom', hashed_admin_pass, 'admin'
             )
 
-# Функция для закрытия пула соединений при остановке сервера
 async def close_db(app):
     if 'db_pool' in app:
         await app['db_pool'].close()
 
-# Функция для чтения HTML-файлов из папки проекта
 def load_html(filename):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     filepath = os.path.join(base_dir, filename)
@@ -124,7 +126,37 @@ async def profile_page(request):
 async def apps_page(request):
     return web.Response(text=load_html('apps.html'), content_type='text/html')
 
-# --- ЗАГРУЗКА МЕДИАФАЙЛОВ И ПЛЕЕРОВ ---
+# --- ИСПРАВЛЕННЫЙ И БЕЗОПАСНЫЙ ПОИСК ЧАТОВ И ПОЛЬЗОВАТЕЛЕЙ ---
+@routes.get('/api/search')
+async def search_handler(request):
+    query = request.query.get('q', '').strip()
+    if not query:
+        return web.json_response([])
+
+    pool = request.app['db_pool']
+    search_pattern = f"%{query}%"
+
+    try:
+        # Ищем уникальных пользователей и уникальные группы одной выборкой
+        # Ранг (type) поможет фронтенду покрасить кружки в нужный цвет (как на скриншотах)
+        users_query = "SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10"
+        rooms_query = "SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 LIMIT 10"
+        
+        users_rows = await pool.fetch(users_query, search_pattern)
+        rooms_rows = await pool.fetch(rooms_query, search_pattern)
+        
+        results = []
+        for r in users_rows:
+            results.append({"name": r['name'], "type": r['type']})
+        for r in rooms_rows:
+            results.append({"name": r['name'], "type": r['type']})
+            
+        return web.json_response(results)
+    except Exception as e:
+        print(f"Ошибка поиска: {e}")
+        return web.json_response({"error": "Ошибка сервера при поиске"}, status=500)
+
+# --- ЗАГРУЗКА МЕДИАФАЙЛОВ ---
 
 @routes.post('/upload')
 async def upload_file(request):
@@ -175,7 +207,6 @@ async def websocket_handler(request):
     pool = request.app['db_pool']
     
     try:
-        async_pg_conn = await pool.acquire()
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 data = json.loads(msg.data)
@@ -193,14 +224,14 @@ async def websocket_handler(request):
                         
                     if action == 'register':
                         try:
-                            await async_pg_conn.execute("INSERT INTO users (username, password) VALUES ($1, $2)", username, hashed_pass)
+                            await pool.execute("INSERT INTO users (username, password) VALUES ($1, $2)", username, hashed_pass)
                             await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": "user"})
                             active_connections[ws]["username"] = username
                         except asyncpg.UniqueViolationError:
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Имя занято!"})
                     
                     elif action == 'login':
-                        row = await async_pg_conn.fetchrow("SELECT role, is_banned, password FROM users WHERE username = $1", username)
+                        row = await pool.fetchrow("SELECT role, is_banned, password FROM users WHERE username = $1", username)
                         if row:
                             db_role, is_banned, db_password = row['role'], row['is_banned'], row['password']
                             if is_banned:
@@ -210,11 +241,11 @@ async def websocket_handler(request):
                                 active_connections[ws]["role"] = db_role
                                 await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": db_role})
                                 
-                                groups_rows = await async_pg_conn.fetch("SELECT room_name FROM room_members WHERE username = $1", username)
+                                groups_rows = await pool.fetch("SELECT room_name FROM room_members WHERE username = $1", username)
                                 groups = [r['room_name'] for r in groups_rows]
                                     
                                 private_rooms = []
-                                private_rows = await async_pg_conn.fetch("SELECT DISTINCT room FROM messages WHERE room LIKE 'PRIVATE|%'")
+                                private_rows = await pool.fetch("SELECT DISTINCT room FROM messages WHERE room LIKE 'PRIVATE|%'")
                                 for r in private_rows:
                                     parts = r['room'].split('|')
                                     if len(parts) == 3 and username in (parts[1], parts[2]):
@@ -227,7 +258,7 @@ async def websocket_handler(request):
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден!"})
 
                 elif action == 'get_users':
-                    users_rows = await async_pg_conn.fetch("SELECT username FROM users WHERE username != $1", active_connections[ws]["username"])
+                    users_rows = await pool.fetch("SELECT username FROM users WHERE username != $1", active_connections[ws]["username"])
                     users = [r['username'] for r in users_rows]
                     await ws.send_json({"type": "user_list", "users": users})
 
@@ -235,8 +266,8 @@ async def websocket_handler(request):
                     group_name = data.get('name', '').strip()
                     if group_name:
                         try:
-                            await async_pg_conn.execute("INSERT INTO rooms (name, type) VALUES ($1, 'group')", group_name)
-                            await async_pg_conn.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", group_name, active_connections[ws]["username"])
+                            await pool.execute("INSERT INTO rooms (name, type) VALUES ($1, 'group')", group_name)
+                            await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", group_name, active_connections[ws]["username"])
                             await ws.send_json({"type": "new_group", "name": group_name})
                         except asyncpg.UniqueViolationError:
                             await ws.send_json({"type": "error_msg", "text": "Группа с таким именем уже существует!"})
@@ -246,7 +277,7 @@ async def websocket_handler(request):
                     room = data.get('room')
                     if target_user and room:
                         try:
-                            await async_pg_conn.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", room, target_user)
+                            await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", room, target_user)
                             for client, info in active_connections.items():
                                 if info["username"] == target_user:
                                     await client.send_json({"type": "new_group", "name": room})
@@ -262,10 +293,12 @@ async def websocket_handler(request):
                     if not new_username or new_username == old_username: continue
                     
                     try:
-                        async with async_pg_conn.transaction():
-                            await async_pg_conn.execute("UPDATE users SET username = $1 WHERE username = $2", new_username, old_username)
-                            await async_pg_conn.execute("UPDATE messages SET username = $1 WHERE username = $2", new_username, old_username)
-                            await async_pg_conn.execute("UPDATE room_members SET username = $1 WHERE username = $2", new_username, old_username)
+                        # Для транзакций кратковременно берем чистое соединение
+                        async with pool.acquire() as transaction_conn:
+                            async with transaction_conn.transaction():
+                                await transaction_conn.execute("UPDATE users SET username = $1 WHERE username = $2", new_username, old_username)
+                                await transaction_conn.execute("UPDATE messages SET username = $1 WHERE username = $2", new_username, old_username)
+                                await transaction_conn.execute("UPDATE room_members SET username = $1 WHERE username = $2", new_username, old_username)
                         
                         active_connections[ws]["username"] = new_username
                         await ws.send_json({"type": "nickname_changed", "new_name": new_username})
@@ -287,12 +320,12 @@ async def websocket_handler(request):
                         
                     time_str = datetime.datetime.now().strftime("%H:%M")
                     
-                    res = await async_pg_conn.fetchrow("SELECT is_banned FROM users WHERE username = $1", user_info["username"])
+                    res = await pool.fetchrow("SELECT is_banned FROM users WHERE username = $1", user_info["username"])
                     if res and res['is_banned'] == 1:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены!"})
                         continue
                     
-                    msg_id = await async_pg_conn.fetchval(
+                    msg_id = await pool.fetchval(
                         "INSERT INTO messages (room, username, content, msg_type, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id", 
                         room, user_info["username"], content, msg_type, time_str
                     )
@@ -303,7 +336,7 @@ async def websocket_handler(request):
                                 parts = room.split('|')
                                 if info["username"] not in (parts[1], parts[2]): continue
                             else:
-                                member_check = await async_pg_conn.fetchrow("SELECT 1 FROM room_members WHERE room_name = $1 AND username = $2", room, info["username"])
+                                member_check = await pool.fetchrow("SELECT 1 FROM room_members WHERE room_name = $1 AND username = $2", room, info["username"])
                                 if not member_check: continue
                             
                             await client.send_json({
@@ -316,14 +349,14 @@ async def websocket_handler(request):
                     active_connections[ws]["room"] = room
                     await ws.send_json({"type": "clear_chat"})
                     
-                    history_rows = await async_pg_conn.fetch("SELECT id, username, content, msg_type, timestamp FROM messages WHERE room = $1 ORDER BY id ASC LIMIT 100", room)
+                    history_rows = await pool.fetch("SELECT id, username, content, msg_type, timestamp FROM messages WHERE room = $1 ORDER BY id ASC LIMIT 100", room)
                     for r in history_rows:
                         await ws.send_json({"type": "msg", "id": r['id'], "room": room, "username": r['username'], "content": r['content'], "msg_type": r['msg_type'], "time": r['timestamp'], "history": True})
 
                 elif action == 'delete_msg':
                     if active_connections[ws]["role"] == 'admin':
                         msg_id = data.get('msg_id')
-                        await async_pg_conn.execute("UPDATE messages SET content = 'Сообщение удалено администратором', msg_type = 'system' WHERE id = $1", msg_id)
+                        await pool.execute("UPDATE messages SET content = 'Сообщение удалено администратором', msg_type = 'system' WHERE id = $1", msg_id)
                         for client in active_connections:
                             await client.send_json({"type": "delete_evt", "id": msg_id})
                             
@@ -331,13 +364,13 @@ async def websocket_handler(request):
                     if active_connections[ws]["role"] == 'admin':
                         target_user = data.get('username')
                         if target_user == 'Grom': continue
-                        await async_pg_conn.execute("UPDATE users SET is_banned = 1 WHERE username = $1", target_user)
+                        await pool.execute("UPDATE users SET is_banned = 1 WHERE username = $1", target_user)
                         for client, info in list(active_connections.items()):
                             if info["username"] == target_user:
                                 await client.send_json({"type": "banned"})
                                 await client.close()
 
-                # --- ДОБАВЛЕННЫЙ СИГНАЛИНГ ДЛЯ ЗВОНКОВ (WebRTC) ---
+                # --- СИГНАЛИНГ ДЛЯ ЗВОНКОВ (WebRTC) ---
                 elif action == 'call_user':
                     target = data.get('target')
                     target_ws = get_ws_by_username(target)
@@ -371,15 +404,12 @@ async def websocket_handler(request):
                         })
     finally:
         active_connections.pop(ws, None)
-        if 'async_pg_conn' in locals():
-            await pool.release(async_pg_conn)
     return ws
 
 app = web.Application()
 app.add_routes(routes)
 app.router.add_static('/uploads/', path=UPLOAD_DIR, name='uploads')
 
-# Жизненный цикл пула соединений в aiohttp
 app.on_startup.append(init_db)
 app.on_cleanup.append(close_db)
 
