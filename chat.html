@@ -427,48 +427,7 @@
             }
             // --- РЕНДЕРИНГ РЕЗУЛЬТАТОВ ПОИСКА ---
             else if (data.type === 'search_results') {
-                const roomListEl = document.getElementById('sidebar-room-list');
-                roomListEl.innerHTML = '';
-                
-                if (data.results.length === 0) {
-                    roomListEl.innerHTML = '<div style="padding: 16px; color: #7f91a4; text-align: center; font-size: 14.5px;">Ничего не найдено</div>';
-                    return;
-                }
-
-                data.results.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'room-item';
-                    
-                    const isUser = item.type === 'user';
-                    const bgStr = isUser ? 'background:#b84343' : '';
-                    const typeLabel = isUser ? 'Пользователь' : 'Группа';
-
-                    div.innerHTML = `
-                        <div class="avatar" style="${bgStr}">${item.name.charAt(0).toUpperCase()}</div>
-                        <div class="room-info">
-                            <div class="room-meta"><span class="room-name">${item.name}</span></div>
-                            <div class="room-preview">${typeLabel}</div>
-                        </div>
-                    `;
-
-                    div.onclick = () => {
-                        // Возвращаем дефолтный список на фон, сбрасываем строку
-                        if (defaultChatsHTML) {
-                            roomListEl.innerHTML = defaultChatsHTML;
-                            defaultChatsHTML = '';
-                        }
-                        document.querySelector('.search-bar').value = '';
-
-                        // Открываем чат в зависимости от типа объекта
-                        if (isUser) {
-                            startPrivateChat(item.name);
-                        } else {
-                            addRoomToSidebar(item.name, false);
-                            changeRoom(item.name, item.name);
-                        }
-                    };
-                    roomListEl.appendChild(div);
-                });
+                handleSearchResults(data.results);
             }
             else if (data.type === 'clear_chat') {
                 document.getElementById('messages').innerHTML = '';
@@ -548,6 +507,72 @@
             }
         });
 
+        // Функция обработки результатов поиска
+        function handleSearchResults(results) {
+            const roomListEl = document.getElementById('sidebar-room-list');
+            roomListEl.innerHTML = '';
+            
+            if (results.length === 0) {
+                roomListEl.innerHTML = '<div style="padding: 16px; color: #7f91a4; text-align: center; font-size: 14.5px;">Ничего не найдено</div>';
+                return;
+            }
+
+            results.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'room-item';
+                
+                const isUser = item.type === 'user';
+                const bgStr = isUser ? 'background:#b84343' : '';
+                const typeLabel = isUser ? 'Пользователь' : 'Группа';
+
+                // Записываем параметры поиска в дата-атрибуты для обработки делегированием
+                div.setAttribute('data-search-item', 'true');
+                div.setAttribute('data-item-type', item.type);
+                div.setAttribute('data-room-title', item.name);
+                div.setAttribute('data-room-id', item.name);
+
+                div.innerHTML = `
+                    <div class="avatar" style="${bgStr}">${item.name.charAt(0).toUpperCase()}</div>
+                    <div class="room-info">
+                        <div class="room-meta"><span class="room-name">${item.name}</span></div>
+                        <div class="room-preview">${typeLabel}</div>
+                    </div>
+                `;
+                roomListEl.appendChild(div);
+            });
+        }
+
+        // ЖЕЛЕЗОБЕТОННЫЙ ОБРАБОТЧИК КЛИКОВ (ДЕЛЕГИРОВАНИЕ)
+        document.getElementById('sidebar-room-list').addEventListener('click', function(e) {
+            const item = e.target.closest('.room-item');
+            if (!item) return; // Кликнули мимо элементов списка
+
+            const roomId = item.getAttribute('data-room-id');
+            const roomTitle = item.getAttribute('data-room-title');
+            const isSearchItem = item.getAttribute('data-search-item') === 'true';
+            const itemType = item.getAttribute('data-item-type');
+
+            if (isSearchItem) {
+                // Клик по результату поиска: чистим строку и возвращаем исходный список на фон
+                const roomListEl = document.getElementById('sidebar-room-list');
+                if (defaultChatsHTML) {
+                    roomListEl.innerHTML = defaultChatsHTML;
+                    defaultChatsHTML = '';
+                }
+                document.querySelector('.search-bar').value = '';
+
+                if (itemType === 'user') {
+                    startPrivateChat(roomTitle);
+                } else {
+                    addRoomToSidebar(roomId, false);
+                    changeRoom(roomId, roomTitle);
+                }
+            } else {
+                // Обычный клик по комнате из списка
+                changeRoom(roomId, roomTitle);
+            }
+        });
+
         // Логика переключения меню и плавного появления окон
         function toggleMenu() {
             const menu = document.getElementById('side-menu');
@@ -616,7 +641,11 @@
             const div = document.createElement('div');
             div.className = 'room-item';
             div.id = 'room-' + roomId;
-            div.onclick = () => changeRoom(roomId, title);
+            
+            // Задаем параметры для корректного переключения комнат по клику
+            div.setAttribute('data-room-id', roomId);
+            div.setAttribute('data-room-title', title);
+            div.setAttribute('data-search-item', 'false');
 
             div.innerHTML = `
                 <div class="avatar" style="${bgStr}">${title.charAt(0).toUpperCase()}</div>
@@ -647,7 +676,7 @@
             
             if (!roomId.startsWith('PRIVATE|')) {
                 document.getElementById('add-member-btn').style.display = 'block';
-                document.getElementById('call-user-btn').style.display = 'none'; // Скрываем в группах, если бэк рассчитан на p2p
+                document.getElementById('call-user-btn').style.display = 'none'; 
                 currentChatPartner = null;
             } else {
                 document.getElementById('add-member-btn').style.display = 'none';
@@ -697,7 +726,7 @@
             })
             .catch(err => {
                 console.error(err);
-                alert("Не удалось загрузить файл на сервер.");
+                alert("Не удалось загрузить файл на server.");
             });
             fileInput.value = '';
         }
