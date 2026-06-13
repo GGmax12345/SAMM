@@ -335,7 +335,11 @@
                     <div class="hamburger" onclick="toggleMenu()">☰</div>
                     <input type="text" class="search-bar" placeholder="Поиск">
                 </div>
-                <div class="room-list" id="sidebar-room-list"></div>
+                <!-- РАЗДЕЛЕНИЕ КОНТЕЙНЕРОВ ДЛЯ ЗАЩИТЫ ОТ СТИРАНИЯ ДАННЫХ ПРИ ПОИСКЕ -->
+                <div class="room-list" id="sidebar-room-list">
+                    <div id="chats-container"></div>
+                    <div id="search-container" style="display: none;"></div>
+                </div>
             </div>
             
             <div class="chat-area">
@@ -373,9 +377,8 @@
         let myUsername = u;
         let myRole = 'user';
         let currentRoom = null;
-        let currentChatPartner = null; // Храним чистый ник собеседника для ЛС
+        let currentChatPartner = null; 
         let renderedRooms = new Set();
-        let defaultChatsHTML = ''; // Переменная хранения списка комнат по умолчанию при поиске
 
         // Переменные WebRTC
         let localStream = null;
@@ -383,9 +386,20 @@
         let callTarget = null;
         let callTimerInterval = null;
         let callSeconds = 0;
+        let iceCandidateQueue = []; // Очередь для предотвращения асинхронных сбоев ICE
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        // Хелпер рендеринга аватарок (ссылка/текст)
+        // Хелпер экранирования от XSS уязвимостей
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         function applyAvatarStyle(el, name, avatarUrl) {
             if (avatarUrl && avatarUrl.trim() !== '') {
                 el.style.backgroundImage = `url('${avatarUrl}')`;
@@ -409,7 +423,6 @@
                     myRole = data.role;
                     document.getElementById('menu-username').textContent = myUsername;
                     
-                    // Подгружаем аватарку устройства из localStorage, если бэкенд её не прислал
                     const cachedAvatar = data.avatar || localStorage.getItem('sam_avatar') || '';
                     applyAvatarStyle(document.getElementById('menu-avatar-letter'), myUsername, cachedAvatar);
                     
@@ -434,10 +447,10 @@
                 const listEl = document.getElementById(targetId);
                 listEl.innerHTML = '';
                 data.users.forEach(user => {
-                    if (user === myUsername) return; // Себе звонить не будем
+                    if (user === myUsername) return; 
                     const div = document.createElement('div');
                     div.className = 'modal-list-item';
-                    div.innerHTML = `<div class="avatar" style="width:30px;height:30px;font-size:14px;">${user.charAt(0).toUpperCase()}</div> ${user}`;
+                    div.innerHTML = `<div class="avatar" style="width:30px;height:30px;font-size:14px;">${escapeHTML(user.charAt(0).toUpperCase())}</div> ${escapeHTML(user)}`;
                     div.onclick = () => { 
                         closeModals(); 
                         if (targetId === 'add-member-list') {
@@ -461,17 +474,14 @@
                 const previewEl = document.getElementById('p-' + data.room);
                 const timeEl = document.getElementById('t-' + data.room);
                 if (previewEl) {
-                    if (data.msg_type === 'text') {
-                        previewEl.textContent = `${data.username}: ${data.content}`;
-                    } else if (data.msg_type === 'image') {
-                        previewEl.textContent = `${data.username}: [Фотография]`;
-                    } else if (data.msg_type === 'audio') {
-                        previewEl.textContent = `${data.username}: [Аудиозапись]`;
-                    } else if (data.msg_type === 'video') {
-                        previewEl.textContent = `${data.username}: [Видеозапись]`;
-                    } else {
-                        previewEl.textContent = `${data.username}: [Файл]`;
-                    }
+                    let contentText = '';
+                    if (data.msg_type === 'text') contentText = data.content;
+                    else if (data.msg_type === 'image') contentText = '[Фотография]';
+                    else if (data.msg_type === 'audio') contentText = '[Аудиозапись]';
+                    else if (data.msg_type === 'video') contentText = '[Видеозапись]';
+                    else contentText = '[Файл]';
+                    
+                    previewEl.textContent = `${data.username}: ${contentText}`;
                     if(timeEl) timeEl.textContent = data.time;
                 }
 
@@ -479,13 +489,11 @@
                     renderMessage(data, data.history);
                 }
             }
-            // --- РЕНДЕРИНГ РЕЗУЛЬТАТОВ ПОИСКА ---
             else if (data.type === 'search_results') {
                 handleSearchResults(data.results);
             }
-            // --- СЕРВЕРНОЕ ОБНОВЛЕНИЕ СТАТУСА ОНЛАЙН ---
             else if (data.type === 'user_status') {
-                const targets = document.querySelectorAll(`[data-peer-username="${data.username}"]`);
+                const targets = document.querySelectorAll(`[data-peer-username="${CSS.escape(data.username)}"]`);
                 targets.forEach(el => {
                     if (data.status === 'online') el.classList.add('online');
                     else el.classList.remove('online');
@@ -508,8 +516,6 @@
             else if (data.type === 'success_msg') {
                 alert(data.text);
             }
-
-            /* --- СИГНАЛЫ ВЕБ-ЗВОНКОВ ДЛЯ СЕРВЕРА --- */
             else if (data.type === 'incoming_call') {
                 callTarget = data.from;
                 document.getElementById('caller-name').textContent = data.from;
@@ -526,7 +532,10 @@
                 }
             }
             else if (data.type === 'webrtc_signal') {
-                if (!peerConnection) await startWebRTCPeer(false);
+                if (!peerConnection) {
+                    // Страховочный вызов, если соединение еще не создалось асинхронно
+                    await startWebRTCPeer(false);
+                }
                 
                 if (data.signal.sdp) {
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
@@ -539,43 +548,51 @@
                             signal: { sdp: peerConnection.localDescription }
                         }));
                     }
+                    // Обрабатываем накопившиеся кандидаты после установки RemoteDescription
+                    while (iceCandidateQueue.length > 0) {
+                        const candidate = iceCandidateQueue.shift();
+                        try { await peerConnection.addIceCandidate(candidate); } catch(e) {}
+                    }
                 } else if (data.signal.candidate) {
-                    try {
-                        await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
-                    } catch (e) { console.error("Ошибка кандидатов ICE", e); }
+                    const candidate = new RTCIceCandidate(data.signal.candidate);
+                    if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
+                        try {
+                            await peerConnection.addIceCandidate(candidate);
+                        } catch (e) { console.error("Ошибка кандидатов ICE", e); }
+                    } else {
+                        iceCandidateQueue.push(candidate);
+                    }
                 }
             }
         };
 
-        // ОТСЛЕЖИВАНИЕ ПОИСКОВОЙ СТРОКИ
+        // ОТСЛЕЖИВАНИЕ ПОИСКОВОЙ СТРОКИ ЧЕРЕЗ НЕЗАВИСИМЫЕ КОНТЕЙНЕРЫ
         document.querySelector('.search-bar').addEventListener('input', function(e) {
             const query = e.target.value.trim();
-            const roomListEl = document.getElementById('sidebar-room-list');
+            const chatsCont = document.getElementById('chats-container');
+            const searchCont = document.getElementById('search-container');
 
             if (query === '') {
-                if (defaultChatsHTML) {
-                    roomListEl.innerHTML = defaultChatsHTML;
-                    defaultChatsHTML = '';
-                }
+                searchCont.style.display = 'none';
+                searchCont.innerHTML = '';
+                chatsCont.style.display = 'block';
                 return;
             }
 
-            if (!defaultChatsHTML) {
-                defaultChatsHTML = roomListEl.innerHTML;
-            }
+            chatsCont.style.display = 'none';
+            searchCont.style.display = 'block';
 
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ action: 'search', query: query }));
             }
         });
 
-        // Функция обработки результатов поиска[cite: 2]
         function handleSearchResults(results) {
-            const roomListEl = document.getElementById('sidebar-room-list');
-            roomListEl.innerHTML = '';
+            const searchCont = document.getElementById('search-container');
+            searchCont.innerHTML = '';
             
             if (results.length === 0) {
-                roomListEl.innerHTML = '<div style="padding: 16px; color: #7f91a4; text-align: center; font-size: 14.5px;">Ничего не найдено</div>';
+                searchCont.innerHTML = '<div style="padding: 16px; color: #7f91a4; text-align: center; font-size: 14.5px;">Ничего не найдено</div>';
                 return;
             }
 
@@ -595,19 +612,18 @@
 
                 div.innerHTML = `
                     <div class="avatar-wrapper">
-                        <div class="avatar" style="${bgStr}">${item.name.charAt(0).toUpperCase()}</div>
+                        <div class="avatar" style="${bgStr}">${escapeHTML(item.name.charAt(0).toUpperCase())}</div>
                         <div class="online-dot"></div>
                     </div>
                     <div class="room-info">
-                        <div class="room-meta"><span class="room-name">${item.name}</span></div>
+                        <div class="room-meta"><span class="room-name">${escapeHTML(item.name)}</span></div>
                         <div class="room-preview">${typeLabel}</div>
                     </div>
                 `;
-                roomListEl.appendChild(div);
+                searchCont.appendChild(div);
             });
         }
 
-        // ОБРАБОТЧИК КЛИКОВ ЧЕРЕЗ ДЕЛЕГИРОВАНИЕ[cite: 2]
         document.getElementById('sidebar-room-list').addEventListener('click', function(e) {
             const item = e.target.closest('.room-item');
             if (!item) return;
@@ -618,11 +634,9 @@
             const itemType = item.getAttribute('data-item-type');
 
             if (isSearchItem) {
-                const roomListEl = document.getElementById('sidebar-room-list');
-                if (defaultChatsHTML) {
-                    roomListEl.innerHTML = defaultChatsHTML;
-                    defaultChatsHTML = '';
-                }
+                document.getElementById('search-container').style.display = 'none';
+                document.getElementById('search-container').innerHTML = '';
+                document.getElementById('chats-container').style.display = 'block';
                 document.querySelector('.search-bar').value = '';
 
                 if (itemType === 'user') {
@@ -636,7 +650,6 @@
             }
         });
 
-        // Логика переключения меню и плавного появления окон
         function toggleMenu() {
             const menu = document.getElementById('side-menu');
             const overlay = document.getElementById('side-menu-overlay');
@@ -666,7 +679,6 @@
             });
         }
 
-        // Управление профилем (Новый SPA функционал)
         function openProfileModal() {
             toggleMenu();
             document.getElementById('profile-nickname').value = myUsername;
@@ -680,7 +692,6 @@
             
             if(!newName) return alert("Никнейм не может быть пустым!");
 
-            // Запоминание на текущем устройстве (localStorage)
             localStorage.setItem('sam_username', newName);
             localStorage.setItem('sam_avatar', newAvatar);
             
@@ -688,7 +699,6 @@
             document.getElementById('menu-username').textContent = myUsername;
             applyAvatarStyle(document.getElementById('menu-avatar-letter'), myUsername, newAvatar);
             
-            // Отправляем изменения на сервер, чтобы другие клиенты зафиксировали изменения
             if(ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ 
                     action: 'update_profile', 
@@ -696,7 +706,6 @@
                     avatar: newAvatar 
                 }));
             }
-            
             closeModals();
         }
 
@@ -746,15 +755,15 @@
 
             div.innerHTML = `
                 <div class="avatar-wrapper">
-                    <div class="avatar" style="${bgStr}">${title.charAt(0).toUpperCase()}</div>
+                    <div class="avatar" style="${bgStr}">${escapeHTML(title.charAt(0).toUpperCase())}</div>
                     <div class="online-dot"></div>
                 </div>
                 <div class="room-info">
-                    <div class="room-meta"><span class="room-name">${title}</span><span class="room-time" id="t-${roomId}"></span></div>
+                    <div class="room-meta"><span class="room-name">${escapeHTML(title)}</span><span class="room-time" id="t-${roomId}"></span></div>
                     <div class="room-preview" id="p-${roomId}">Нет сообщений</div>
                 </div>
             `;
-            document.getElementById('sidebar-room-list').prepend(div);
+            document.getElementById('chats-container').prepend(div);
         }
 
         function changeRoom(roomId, titleText) {
@@ -826,7 +835,7 @@
             })
             .catch(err => {
                 console.error(err);
-                alert("Не удалось загрузить файл на сервер.");
+                alert("Не удалось загрузить файл на server.");
             });
             fileInput.value = '';
         }
@@ -844,32 +853,32 @@
             div.id = 'block-' + msg.id;
             div.className = 'msg-block' + (msg.msg_type === 'system' ? ' system-msg' : '');
             
-            let html = `<div class="msg-author">${msg.username}</div><div class="msg-body" id="content-${msg.id}">`;
+            let html = `<div class="msg-author">${escapeHTML(msg.username)}</div><div class="msg-body" id="content-${msg.id}">`;
             
             if (msg.msg_type === 'text') {
-                html += document.createTextNode(msg.content).textContent;
+                html += escapeHTML(msg.content);
             } else if (['image', 'file', 'audio', 'video'].includes(msg.msg_type)) {
                 try {
                     const fileData = JSON.parse(msg.content);
                     if (msg.msg_type === 'image') {
-                        html += `<img src="${fileData.url}" alt="${fileData.name}">`;
+                        html += `<img src="${encodeURI(fileData.url)}" alt="${escapeHTML(fileData.name)}">`;
                     } else if (msg.msg_type === 'audio') {
-                        html += `🎵 <b>${fileData.name}</b><audio controls src="${fileData.url}"></audio>`;
+                        html += `🎵 <b>${escapeHTML(fileData.name)}</b><audio controls src="${encodeURI(fileData.url)}"></audio>`;
                     } else if (msg.msg_type === 'video') {
-                        html += `🎥 <b>${fileData.name}</b><video controls src="${fileData.url}"></video>`;
+                        html += `🎥 <b>${escapeHTML(fileData.name)}</b><video controls src="${encodeURI(fileData.url)}"></video>`;
                     } else {
-                        html += `📎 <b>${fileData.name}</b>`;
+                        html += `📎 <b>${escapeHTML(fileData.name)}</b>`;
                     }
-                    html += `<br><a href="${fileData.url}" download="${fileData.name}" class="download-btn">📥 Скачать</a>`;
+                    html += `<br><a href="${encodeURI(fileData.url)}" download="${escapeHTML(fileData.name)}" class="download-btn">📥 Скачать</a>`;
                 } catch(e) {
-                    if (msg.msg_type === 'image') html += `<img src="${msg.content}">`;
+                    if (msg.msg_type === 'image') html += `<img src="${encodeURI(msg.content)}">`;
                     else html += `📎 Старый файл (Base64)`;
                 }
             } else if (msg.msg_type === 'system') {
-                html += msg.content;
+                html += escapeHTML(msg.content);
             }
             
-            html += `</div><div class="msg-time">${msg.time}</div>`;
+            html += `</div><div class="msg-time">${escapeHTML(msg.time)}</div>`;
             if (msg.msg_type !== 'system') {
                 html += `<div class="admin-actions"><span class="adm-btn" onclick="deleteMessage(${msg.id})">Удалить</span></div>`;
             }
@@ -881,7 +890,7 @@
 
         function deleteMessage(id) { if(confirm("Удалить?")) ws.send(JSON.stringify({ action: 'delete_msg', msg_id: id })); }
 
-        // --- WEBRTC КЛИЕНТСКАЯ ЛОГИКА ---
+        // --- ИСПРАВЛЕННАЯ WEBRTC ЛОГИКА ---
         function startCallWithActiveUser() {
             if (!currentChatPartner) return;
             callTarget = currentChatPartner;
@@ -907,6 +916,9 @@
                 target: callTarget,
                 accepted: true
             }));
+            
+            // Инициализация начинается мгновенно при апруве, обрубая Race Condition
+            await startWebRTCPeer(false);
         }
 
         function declineCall() {
@@ -930,6 +942,8 @@
             }
 
             peerConnection = new RTCPeerConnection(rtcConfig);
+            iceCandidateQueue = []; // Сброс очереди при новом коннекте
+            
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
             peerConnection.ontrack = (event) => {
@@ -937,7 +951,7 @@
             };
 
             peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
+                if (event.candidate && callTarget) {
                     ws.send(JSON.stringify({
                         action: 'webrtc_signal',
                         target: callTarget,
@@ -963,9 +977,9 @@
             stopTimer();
             closeModals();
             callTarget = null;
+            iceCandidateQueue = [];
         }
 
-        // Таймер разговора
         function startTimer() {
             resetTimer();
             callTimerInterval = setInterval(() => {
@@ -979,12 +993,10 @@
         function stopTimer() { clearInterval(callTimerInterval); }
         function resetTimer() { callSeconds = 0; document.getElementById('call-timer').textContent = "00:00"; }
 
-        // --- ЛОГИКА ДИНАМИЧЕСКОЙ ГАЛЕРЕИ ЧАТА ---
         function openChatGallery() {
             const grid = document.getElementById('gallery-grid');
             grid.innerHTML = ''; 
             
-            // Находим все изображения, отрендеренные в DOM внутри контейнера сообщений
             const images = document.querySelectorAll('#messages .msg-body img');
             
             if (images.length === 0) {
@@ -993,7 +1005,6 @@
                 images.forEach(img => {
                     const clone = img.cloneNode(true);
                     
-                    // Стилизация превью-плиток
                     clone.style.width = '100%';
                     clone.style.height = '90px';
                     clone.style.objectFit = 'cover';
@@ -1001,10 +1012,8 @@
                     clone.style.cursor = 'pointer';
                     clone.style.transition = 'transform 0.2s, box-shadow 0.2s';
                     
-                    // Клик открывает исходную картинку в новой вкладке
                     clone.onclick = () => window.open(img.src, '_blank');
                     
-                    // Легкий ховер-эффект
                     clone.onmouseenter = () => {
                         clone.style.transform = 'scale(1.04)';
                         clone.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
