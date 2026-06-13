@@ -312,6 +312,19 @@
             </div>
         </div>
 
+        <!-- МОДАЛЬНОЕ ОКНО ГАЛЕРЕИ ЧАТА -->
+        <div id="gallery-modal" class="modal-overlay">
+            <div class="modal-box" style="max-width: 450px; width: 90%;">
+                <h3>Медиа файлы чата</h3>
+                <div id="gallery-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px;">
+                    <!-- Картинки будут подгружаться сюда динамически -->
+                </div>
+                <div class="modal-btns" style="margin-top: 15px;">
+                    <button class="btn-cancel" onclick="closeModals()">Закрыть</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Теги потоков WebRTC -->
         <audio id="localAudio" autoplay muted></audio>
         <audio id="remoteAudio" autoplay></audio>
@@ -330,6 +343,7 @@
                     <div class="back-btn" onclick="backToRoomList()">⬅</div>
                     <div class="chat-title" id="chat-title-top">Название чата</div>
                     <div style="display: flex; gap: 8px; align-items: center;">
+                        <button id="gallery-btn" class="header-action-btn" onclick="openChatGallery()" title="Медиа чата">🖼️</button>
                         <button id="call-user-btn" class="header-action-btn" onclick="startCallWithActiveUser()" title="Позвонить">📞</button>
                         <button id="add-member-btn" style="display: none; background: #2481cc; color: white; border: none; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 600;">+ Участник</button>
                     </div>
@@ -339,7 +353,7 @@
                 </div>
                 <div class="input-panel" id="main-input-panel" style="display: none;">
                     <label class="attach-btn">
-                        📎<input type="file" id="file-input" onchange="sendFile()">
+                        📎<input type="file" id="file-input" accept="image/*" onchange="sendFile()">
                     </label>
                     <input type="text" id="message-input" maxlength="1000" placeholder="Напишите сообщение..." onkeypress="if(event.key==='Enter') sendTextMessage()">
                     <div id="send-btn" onclick="sendTextMessage()">ОТПРАВИТЬ</div>
@@ -964,6 +978,47 @@
 
         function stopTimer() { clearInterval(callTimerInterval); }
         function resetTimer() { callSeconds = 0; document.getElementById('call-timer').textContent = "00:00"; }
+
+        // --- ЛОГИКА ДИНАМИЧЕСКОЙ ГАЛЕРЕИ ЧАТА ---
+        function openChatGallery() {
+            const grid = document.getElementById('gallery-grid');
+            grid.innerHTML = ''; 
+            
+            // Находим все изображения, отрендеренные в DOM внутри контейнера сообщений
+            const images = document.querySelectorAll('#messages .msg-body img');
+            
+            if (images.length === 0) {
+                grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #7f91a4; padding: 20px; font-size: 14px;">В этом чате еще нет изображений</div>';
+            } else {
+                images.forEach(img => {
+                    const clone = img.cloneNode(true);
+                    
+                    // Стилизация превью-плиток
+                    clone.style.width = '100%';
+                    clone.style.height = '90px';
+                    clone.style.objectFit = 'cover';
+                    clone.style.borderRadius = '8px';
+                    clone.style.cursor = 'pointer';
+                    clone.style.transition = 'transform 0.2s, box-shadow 0.2s';
+                    
+                    // Клик открывает исходную картинку в новой вкладке
+                    clone.onclick = () => window.open(img.src, '_blank');
+                    
+                    // Легкий ховер-эффект
+                    clone.onmouseenter = () => {
+                        clone.style.transform = 'scale(1.04)';
+                        clone.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
+                    };
+                    clone.onmouseleave = () => {
+                        clone.style.transform = 'scale(1)';
+                        clone.style.boxShadow = 'none';
+                    };
+                    
+                    grid.appendChild(clone);
+                });
+            }
+            openModal('gallery-modal');
+        }
     </script>
 </body>
 </html>
