@@ -260,7 +260,7 @@ async def websocket_handler(request):
                 elif action == 'search':
                     query = data.get('query', '').strip()
                     if query:
-                        search_pattern = f"%{query}%"
+                        search_pattern = f"{query}%"
                         try:
                             users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
                             rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 LIMIT 10", search_pattern)
