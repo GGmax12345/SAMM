@@ -69,9 +69,10 @@
             font-weight: 700; 
             background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%);
             -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            background-clip: text; /* Добавлено стандартное свойство */
+            -webkit-text-fill-color: transparent; /* Убран дубликат */
             text-shadow: none;
-        }
+}
 
         /* 3. СТЕКЛЯННЫЕ ЭЛЕМЕНТЫ */
         .glass-element {
@@ -100,6 +101,7 @@
             border-radius: inherit; padding: 2px;
             background: radial-gradient(100px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 180, 255, 0.7) 0%, rgba(0, 100, 255, 0.3) 50%, transparent 100%);
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor; mask-composite: exclude;
             pointer-events: none; z-index: 5; opacity: 0; 
             transition: opacity 0.3s ease;
@@ -378,7 +380,48 @@
         }
         requestAnimationFrame(renderLoop);
 
-        function submitAuth() { console.log("Действие:", currentAuthAction); }
+        function submitAuth() {
+            const username = document.getElementById('auth-user').value.trim();
+            const password = document.getElementById('auth-pass').value;
+            const errorEl = document.getElementById('auth-error');
+            
+            if (!username || !password) {
+                errorEl.textContent = 'Заполните все поля!';
+                return;
+            }
+
+            if (currentAuthAction === 'register') {
+                const passwordRepeat = document.getElementById('auth-pass-repeat').value;
+                if (password !== passwordRepeat) {
+                    errorEl.textContent = 'Пароли не совпадают!';
+                    return;
+                }
+            }
+
+            // Отправляем данные на бэкенд (на эндпоинты /login или /register)
+            fetch('/' + currentAuthAction, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, password: password })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    errorEl.textContent = data.error;
+                } else {
+                    // Сохраняем данные для корректной работы профиля
+                    localStorage.setItem('sam_username', username);
+                    localStorage.setItem('sam_password', password);
+                    
+                    // Перенаправляем пользователя в чат
+                    window.location.href = '/chat';
+                }
+            })
+            .catch(err => {
+                errorEl.textContent = 'Ошибка соединения с сервером';
+                console.error(err);
+            });
+        }
     </script>
 </body>
 </html>
