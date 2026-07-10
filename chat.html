@@ -458,6 +458,19 @@
                     data.rooms.forEach(room => {
                         addRoomToSidebar(room.id, room.is_private, room.title, room.unread, room.last_msg, room.last_time, room.online);
                     });
+
+                    // [СОХРАНЕНИЕ]: Восстановление последней активной комнаты после перезагрузки страницы
+                    const savedRoom = localStorage.getItem('sam_current_room');
+                    const savedTitle = localStorage.getItem('sam_current_room_title');
+                    if (savedRoom && savedTitle && !currentRoom) {
+                        if (savedRoom.startsWith('PRIVATE|')) {
+                            const parts = savedRoom.split('|');
+                            currentChatPartner = parts[1] === myUsername ? parts[2] : parts[1];
+                        } else {
+                            currentChatPartner = null;
+                        }
+                        openChatRoom(savedRoom, savedTitle);
+                    }
                 } 
                 else if (data.type === 'msg') {
                     let isPrivate = data.room.startsWith('PRIVATE|');
@@ -577,6 +590,11 @@
             }
 
             currentRoom = roomId;
+
+            // [СОХРАНЕНИЕ]: Записываем ID и имя комнаты в localStorage при открытии чата
+            localStorage.setItem('sam_current_room', roomId);
+            localStorage.setItem('sam_current_room_title', titleText);
+
             const targetRoomEl = document.getElementById('room-' + currentRoom);
             if (targetRoomEl) {
                 targetRoomEl.classList.add('active');
@@ -588,6 +606,10 @@
             document.getElementById('main-chat-header').style.display = 'flex';
             document.getElementById('main-input-panel').style.display = 'flex';
             document.getElementById('chat-title-top').textContent = titleText;
+
+            // [СОХРАНЕНИЕ]: Восстанавливаем сохраненный черновик для данного чата, если он есть
+            const savedDraft = localStorage.getItem('sam_draft_' + roomId) || '';
+            document.getElementById('message-input').value = savedDraft;
 
             if (!roomId.startsWith('PRIVATE|')) {
                 document.getElementById('add-member-btn').style.display = 'block';
@@ -611,6 +633,11 @@
             if (currentRoom) {
                 const oldEl = document.getElementById('room-' + currentRoom);
                 if (oldEl) oldEl.classList.remove('active');
+
+                // [СОХРАНЕНИЕ]: Стираем данные о текущей комнате, если пользователь вышел в список чатов
+                localStorage.removeItem('sam_current_room');
+                localStorage.removeItem('sam_current_room_title');
+
                 currentRoom = null;
             }
         }
@@ -680,6 +707,9 @@
                     content: val
                 }));
                 input.value = '';
+
+                // [СОХРАНЕНИЕ]: Удаляем черновик, так как сообщение было успешно отправлено
+                localStorage.removeItem('sam_draft_' + currentRoom);
             }
         }
 
@@ -785,6 +815,7 @@
             if (e.target.id === id) closeModals();
         }
 
+        // Боковое меню
         function toggleMenu() {
             const menu = document.getElementById('side-menu');
             const overlay = document.getElementById('side-menu-overlay');
@@ -799,7 +830,6 @@
             }
         }
 
-        // Роутинг методов из html_isprav
         function openProfileModal() {
             toggleMenu();
             document.getElementById('profile-nickname').value = myUsername;
@@ -1127,6 +1157,13 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             connectWebSocket();
+
+            // [СОХРАНЕНИЕ]: Слушатель ввода для мгновенного сохранения черновиков сообщений
+            document.getElementById('message-input').addEventListener('input', (e) => {
+                if (currentRoom) {
+                    localStorage.setItem('sam_draft_' + currentRoom, e.target.value);
+                }
+            });
         });
     </script>
 </body>
