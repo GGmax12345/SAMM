@@ -114,7 +114,7 @@
         /* Кнопка назад */
         .back-btn { display: none; font-size: 20px; color: #6e89b5; cursor: pointer; padding: 8px 12px 8px 4px; user-select: none; font-weight: bold; }
         .chat-title { font-weight: 700; font-size: 16.5px; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+            background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .messages-container { flex-grow: 1; padding: 20px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; scrollbar-width: none; }
         .messages-container::-webkit-scrollbar { display: none; }
         
@@ -254,7 +254,6 @@
                 <div class="menu-name" id="menu-username">Username</div>
                 <div class="menu-status">SAM Личный кабинет</div>
             </div>
-            <!-- Иконки полностью убраны из меню для чистого минималистичного вида -->
             <div class="menu-items">
                 <div class="menu-item" onclick="window.location.href='/apps'">Скачать приложение</div>
                 <div class="menu-item" onclick="openProfileModal()">Профиль и Аватарка</div>
@@ -406,6 +405,43 @@
         let iceCandidateQueue = []; 
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+        // === СИСТЕМА УВЕДОМЛЕНИЙ (PUSH & AUDIO) ===
+        if (window.Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+
+        function sendPushNotification(title, text) {
+            if (window.Notification && Notification.permission === "granted" && document.hidden) {
+                new Notification(title, {
+                    body: text,
+                    icon: '/uploads/icon.png' 
+                });
+            }
+        }
+
+        // Генерация приятного уведомления "дзынь" программно
+        function playNotificationSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'sine';
+                // Две ноты для красивого перелива (Ми и Ля)
+                osc.frequency.setValueAtTime(587.33, ctx.currentTime); 
+                osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.08); 
+                
+                gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start();
+                osc.stop(ctx.currentTime + 0.35);
+            } catch (e) { console.error("Звук не запустился:", e); }
+        }
+
         // Плавное слежение за курсором мыши
         (function() {
             const glow = document.getElementById('cursor-glow-bg');
@@ -516,6 +552,15 @@
 
                 if (data.room === currentRoom) {
                     renderMessage(data, data.history);
+                }
+
+                // Логика триггеров пушей и звука при входящем сообщении
+                if (data.username !== myUsername) {
+                    playNotificationSound();
+                    
+                    let notifyText = data.msg_type === 'text' ? data.content : '[Медиафайл]';
+                    let notifyTitle = isPrivate ? `Сообщение от ${data.username}` : `Группа: ${targetTitle}`;
+                    sendPushNotification(notifyTitle, notifyText);
                 }
             }
             else if (data.type === 'search_results') {
@@ -861,7 +906,7 @@
             })
             .catch(err => {
                 console.error(err);
-                alert("Не удалось загрузить файл на server.");
+                alert("Не удалось загрузить файл на сервер.");
             });
             fileInput.value = '';
         }
