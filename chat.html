@@ -117,6 +117,8 @@
         .messages-container { flex-grow: 1; padding: 20px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; scrollbar-width: none; }
         .messages-container::-webkit-scrollbar { display: none; }
         
+        #empty-chat-msg { text-align: center; color: #6e89b5; background: rgba(10, 16, 26, 0.65); border: 1px solid rgba(163, 191, 255, 0.06); padding: 14px 24px; border-radius: 20px; margin: auto; font-size: 14.5px; max-width: 85%; line-height: 1.4; box-shadow: 0 4px 15px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }
+
         /* Отображение сообщений */
         .msg-row { display: flex; width: 100%; animation: fadeInMsg 0.22s ease-out forwards; }
         @keyframes fadeInMsg { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -170,7 +172,7 @@
         
         #message-input { flex-grow: 1; padding: 11px 16px; background: rgba(5, 8, 15, 0.6); border: 1px solid rgba(163, 191, 255, 0.06); border-radius: 24px; color: white; outline: none; font-size: 15px; transition: border 0.2s; }
         #message-input:focus { border-color: rgba(0, 160, 255, 0.4); background: rgba(5, 8, 15, 0.8); }
-        #send-btn { color: #00a0ff; font-size: 15px; font-weight: 600; cursor: pointer; user-select: none; padding: 6px 12px; transition: color 0.2s, text-shadow 0.2s; }
+        #send-btn { color: #00a0ff; font-size: 15px; font-weight: 600; cursor: pointer; user-select: none; padding: 6px 12px; transition: color 0.2s, text-shadow 0.2s; text-transform: uppercase; }
         #send-btn:hover { color: #5ab0ff; text-shadow: 0 0 8px rgba(0, 160, 255, 0.5); }
 
         /* Шапка кнопок действий звонков / управления комнатой */
@@ -179,6 +181,7 @@
             font-size: 20px; color: #6e89b5; cursor: pointer; user-select: none; 
             border-radius: 50%; transition: background 0.2s, color 0.2s;
             display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;
+            background: transparent; border: none;
         }
         .header-action-btn:hover { background: rgba(0, 150, 255, 0.12); color: #fff; }
         
@@ -188,25 +191,28 @@
         #localAudio, #remoteAudio { display: none; }
 
         /* Модальные окна */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.65); backdrop-filter: blur(5px); z-index: 2000; align-items: center; justify-content: center; }
-        .modal-box { background: #0e1624; border: 1px solid rgba(163, 191, 255, 0.08); padding: 24px; border-radius: 16px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: #fff; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.65); backdrop-filter: blur(5px); z-index: 2000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.23s ease; }
+        .modal-box { background: #0e1624; border: 1px solid rgba(163, 191, 255, 0.08); padding: 24px; border-radius: 16px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: #fff; transform: scale(0.92); transition: transform 0.23s cubic-bezier(0.175, 0.885, 0.32, 1.25); }
+        .modal-overlay.show { opacity: 1; }
+        .modal-overlay.show .modal-box { transform: scale(1); }
+        
         .modal-box h3 { margin-top: 0; margin-bottom: 16px; font-size: 18px; font-weight: 600; }
-        .modal-box input[type="text"] { width: 100%; padding: 12px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(163, 191, 255, 0.1); border-radius: 10px; color: #fff; outline: none; margin-bottom: 16px; font-size: 15px; }
-        .modal-box input[type="text"]:focus { border-color: #00a0ff; }
+        .modal-input { width: 100%; padding: 12px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(163, 191, 255, 0.1); border-radius: 10px; color: #fff; outline: none; margin-bottom: 16px; font-size: 15px; }
+        .modal-input:focus { border-color: #00a0ff; }
         
         .modal-btns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
         .modal-btns button { padding: 10px 18px; border: none; border-radius: 10px; font-size: 14.5px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
         .btn-cancel { background: #202b36; color: #6e89b5; }
         .btn-cancel:hover { background: #2b394a; color: #fff; }
-        .btn-confirm { background: #00a0ff; color: #fff; }
-        .btn-confirm:hover { background: #008cd0; }
+        .btn-confirm, .btn-primary { background: #00a0ff; color: #fff; }
+        .btn-confirm:hover, .btn-primary:hover { background: #008cd0; }
         .btn-danger { background: #d32f2f; color: #fff; }
         .btn-danger:hover { background: #b71c1c; }
         .btn-success { background: #388e3c; color: #fff; }
         .btn-success:hover { background: #2e7d32; }
 
         .modal-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding-right: 4px; }
-        .modal-list-item { display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(163, 191, 255, 0.03); border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+        .modal-list-item { display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(163, 191, 255, 0.03); border-radius: 8px; cursor: pointer; transition: background 0.2s; color: #e1e6eb; }
         .modal-list-item:hover { background: rgba(0, 160, 255, 0.1); }
         .modal-list-avatar { width: 36px; height: 36px; border-radius: 50%; background: #2b5278; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
 
@@ -219,9 +225,8 @@
             .chat-area { width: 100%; position: absolute; left: 0; top: 0; height: 100%; z-index: 4; transform: translateX(100%); }
             .back-btn { display: block; }
             
-            /* Переключение экранов на мобилках через обертку раскладки */
-            .app-layout.chat-open .sidebar { transform: translateX(-100%); }
-            .app-layout.chat-open .chat-area { transform: translateX(0); z-index: 6; }
+            .app-layout.chat-open .sidebar { transform: translateX(-25%); }
+            .app-layout.chat-open .chat-area { transform: translateX(0); z-index: 6; box-shadow: -5px 0 20px rgba(0,0,0,0.4); }
         }
     </style>
 </head>
@@ -246,23 +251,26 @@
 
             <div class="chat-area">
                 <div class="chat-header" id="main-chat-header" style="display: none;">
-                    <div class="back-btn" onclick="closeActiveChat()">←</div>
+                    <div class="back-btn" onclick="backToRoomList()">←</div>
                     <div class="chat-title" id="chat-title-top">Выберите чат</div>
                     
                     <div class="header-actions">
-                        <div class="header-action-btn" id="call-user-btn" onclick="startCall()" title="Позвонить" style="display: none;">📞</div>
-                        <div class="header-action-btn" id="add-member-btn" onclick="openAddMemberModal()" title="Добавить участника" style="display: none;">👤+</div>
+                        <button id="gallery-btn" class="header-action-btn" onclick="openChatGallery()" title="Медиа чата">🖼️</button>
+                        <button id="call-user-btn" class="header-action-btn" onclick="startCallWithActiveUser()" title="Позвонить" style="display: none;">📞</button>
+                        <button id="add-member-btn" class="header-action-btn" onclick="openAddMemberModal()" title="Добавить участника" style="display: none;">👤+</button>
                     </div>
                 </div>
 
-                <div class="messages-container" id="messages"></div>
+                <div class="messages-container" id="messages">
+                    <div id="empty-chat-msg">Выберите чат или создайте новый для начала общения</div>
+                </div>
 
                 <div class="input-panel" id="main-input-panel" style="display: none;">
                     <div class="attach-btn" onclick="triggerFileInput()">📎</div>
-                    <input type="file" id="file-input" onchange="handleFileSelect()">
+                    <input type="file" id="file-input" onchange="sendFile()">
                     
-                    <input type="text" id="message-input" placeholder="Напишите сообщение..." autocomplete="off">
-                    <div id="send-btn" onclick="sendMessage()">Отправить</div>
+                    <input type="text" id="message-input" maxlength="1000" placeholder="Напишите сообщение..." autocomplete="off" onkeypress="if(event.key==='Enter') sendTextMessage()">
+                    <div id="send-btn" onclick="sendTextMessage()">Отправить</div>
                 </div>
             </div>
 
@@ -274,34 +282,47 @@
         <div class="menu-profile-header">
             <div class="menu-avatar" id="my-profile-avatar">?</div>
             <div class="menu-name" id="my-profile-name">Загрузка...</div>
-            <div class="menu-status">в сети</div>
+            <div class="menu-status" id="menu-avatar-letter">SAM Личный кабинет</div>
         </div>
         <div class="menu-items">
-            <div class="menu-items">
-    <div class="menu-item" onclick="openContactsModal()">Контакты</div>
-    <div class="menu-item" onclick="openModal('group-modal')">Создать группу</div>
-    <div class="menu-item" onclick="openGalleryModal()">Медиа чата</div>
-    <div class="menu-item" onclick="location.href='/apps'">Скачать приложения</div>
-    <div class="menu-item" style="color: #ff6b6b;" onclick="location.href='/'">Выйти</div>
-</div>
-</div>
+            <div class="menu-item" onclick="openProfileModal()"><span class="menu-icon">✏️</span> Профиль и Аватарка</div>
+            <div class="menu-item" onclick="openContactsModal()"><span class="menu-icon">👤</span> Контакты</div>
+            <div class="menu-item" onclick="openCreateGroupModal()"><span class="menu-icon">👥</span> Создать группу</div>
+            <div class="menu-item" onclick="openChatGallery()"><span class="menu-icon">🖼️</span> Медиа чата</div>
+            <div class="menu-item" onclick="window.location.href='/apps'"><span class="menu-icon">📥</span> Скачать приложения</div>
+            <div class="menu-item" style="color: #ff6b6b;" onclick="localStorage.clear(); window.location.href='/'"><span class="menu-icon">🚪</span> Выйти</div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА НАСТРОЙКИ ПРОФИЛЯ -->
+    <div id="profile-modal" class="modal-overlay" onclick="handleOutsideClick(event, 'profile-modal')">
+        <div class="modal-box">
+            <h3>Настройки профиля</h3>
+            <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">Ваш никнейм:</label>
+            <input type="text" id="profile-nickname" class="modal-input" placeholder="Введите новый ник...">
+            <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">URL-ссылка на аватарку:</label>
+            <input type="text" id="profile-avatar-url" class="modal-input" placeholder="https://example.com/photo.jpg">
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closeModals()">Отмена</button>
+                <button class="btn-primary" onclick="confirmUpdateProfile()">Сохранить</button>
+            </div>
         </div>
     </div>
 
     <div id="group-modal" class="modal-overlay" onclick="handleOutsideClick(event, 'group-modal')">
         <div class="modal-box">
             <h3>Создать группу</h3>
-            <input type="text" id="new-group-name" placeholder="Название группы">
+            <input type="text" id="new-group-name" class="modal-input" placeholder="Название группы...">
             <div class="modal-btns">
                 <button class="btn-cancel" onclick="closeModals()">Отмена</button>
-                <button class="btn-confirm" onclick="createGroup()">Создать</button>
+                <button class="btn-confirm" onclick="confirmCreateGroup()">Создать</button>
             </div>
         </div>
     </div>
 
     <div id="contacts-modal" class="modal-overlay" onclick="handleOutsideClick(event, 'contacts-modal')">
         <div class="modal-box">
-            <h3>Все пользователи</h3>
+            <h3>Выберите контакт</h3>
             <div id="contacts-list" class="modal-list"></div>
             <div class="modal-btns">
                 <button class="btn-cancel" onclick="closeModals()">Закрыть</button>
@@ -311,7 +332,7 @@
 
     <div id="add-member-modal" class="modal-overlay" onclick="handleOutsideClick(event, 'add-member-modal')">
         <div class="modal-box">
-            <h3>Добавить участника</h3>
+            <h3>Добавить в группу</h3>
             <div id="add-member-list" class="modal-list"></div>
             <div class="modal-btns">
                 <button class="btn-cancel" onclick="closeModals()">Закрыть</button>
@@ -332,7 +353,7 @@
 
     <div id="call-status-modal" class="modal-overlay">
         <div class="modal-box" style="text-align: center;">
-            <h3 id="call-status-title" style="margin-bottom: 5px;">Установка соединения...</h3>
+            <h3 id="call-status-title">Установка соединения...</h3>
             <div id="call-timer" style="font-size: 24px; font-weight: bold; margin: 20px 0; color: #00a0ff;">00:00</div>
             <div class="modal-btns" style="justify-content: center;">
                 <button class="btn-danger" style="padding: 12px 30px; border-radius: 24px;" onclick="endCall()">Завершить звонок</button>
@@ -370,6 +391,7 @@
         // Глобальные переменные состояния
         let ws = null;
         let myUsername = "";
+        let myAvatarUrl = "";
         let isSystemAdmin = false;
         let currentRoom = null;
         let currentChatPartner = null;
@@ -395,14 +417,12 @@
                 .replace(/'/g, '&#039;');
         }
 
-        // Автоматическое определение WebSocket-протокола
         function getWsUrl() {
             const loc = window.location;
             const proto = loc.protocol === "https:" ? "wss:" : "ws:";
             return `${proto}//${loc.host}/ws`;
         }
 
-        // Подключение и обработка WebSocket
         function connectWebSocket() {
             ws = new WebSocket(getWsUrl());
 
@@ -414,9 +434,19 @@
                 if (data.type === 'init') {
                     myUsername = data.username;
                     isSystemAdmin = !!data.is_admin;
+                    myAvatarUrl = data.avatar_url || "";
+                    
                     document.getElementById('my-profile-name').textContent = myUsername;
                     const avatarEl = document.getElementById('my-profile-avatar');
-                    avatarEl.textContent = myUsername.charAt(0).toUpperCase();
+                    
+                    if (myAvatarUrl) {
+                        avatarEl.style.backgroundImage = `url('${myAvatarUrl}')`;
+                        avatarEl.textContent = "";
+                    } else {
+                        avatarEl.style.backgroundImage = "";
+                        avatarEl.textContent = myUsername.charAt(0).toUpperCase();
+                    }
+                    
                     if (isSystemAdmin) {
                         document.body.classList.add('global-admin-mode');
                     }
@@ -441,12 +471,8 @@
                     
                     if (data.room === currentRoom) {
                         appendMessage(data, false);
-                        if (document.hidden || data.room !== currentRoom) {
-                            // логика уведомлений
-                        } else {
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({ action: 'read', room: currentRoom }));
-                            }
+                        if (!document.hidden && ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ action: 'read', room: currentRoom }));
                         }
                     }
                 } 
@@ -473,7 +499,6 @@
             };
         }
 
-        // Отрисовка списка комнат в сайдбаре
         function addRoomToSidebar(roomId, isPrivate, title, isUnread = false, lastMsg = '', lastTime = '', online = false, msgType = 'text') {
             const container = document.getElementById('chats-container');
             let div = document.getElementById('room-' + roomId);
@@ -520,7 +545,6 @@
             renderedRooms.add(roomId);
         }
 
-        // Выбор и открытие комнаты чата
         document.getElementById('sidebar-room-list').addEventListener('click', function(e) {
             const item = e.target.closest('.room-item');
             if (!item) return;
@@ -561,12 +585,10 @@
                 if (pEl) pEl.style.cssText = '';
             }
 
-            // Открытие UI компонентов окна чата
             document.getElementById('main-chat-header').style.display = 'flex';
             document.getElementById('main-input-panel').style.display = 'flex';
             document.getElementById('chat-title-top').textContent = titleText;
 
-            // Настройка отображения кнопок шапки звонков / добавления
             if (!roomId.startsWith('PRIVATE|')) {
                 document.getElementById('add-member-btn').style.display = 'block';
                 document.getElementById('call-user-btn').style.display = 'none';
@@ -575,10 +597,8 @@
                 document.getElementById('call-user-btn').style.display = 'flex';
             }
 
-            // Анимационный переход мобильного вида (Telegram style)
             document.getElementById('layout-wrapper').classList.add('chat-open');
 
-            // Запрос истории чата
             document.getElementById('messages').innerHTML = '';
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ action: 'history', room: currentRoom }));
@@ -586,8 +606,7 @@
             }
         }
 
-        // Закрытие активного чата на мобильных устройствах
-        function closeActiveChat() {
+        function backToRoomList() {
             document.getElementById('layout-wrapper').classList.remove('chat-open');
             if (currentRoom) {
                 const oldEl = document.getElementById('room-' + currentRoom);
@@ -596,7 +615,6 @@
             }
         }
 
-        // Отрисовка сообщения на экране
         function appendMessage(msg, isHistoryLoad = false) {
             const container = document.getElementById('messages');
             const row = document.createElement('div');
@@ -649,8 +667,7 @@
             }
         }
 
-        // Отправка текстового сообщения
-        function sendMessage() {
+        function sendTextMessage() {
             const input = document.getElementById('message-input');
             const val = input.value.trim();
             if (!val || !currentRoom) return;
@@ -666,18 +683,12 @@
             }
         }
 
-        document.getElementById('message-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
-
-        // Административное удаление сообщения
         function deleteMessage(id) {
             if (confirm("Вы точно хотите удалить это сообщение из базы данных?") && ws) {
                 ws.send(JSON.stringify({ action: 'delete_message', id: id }));
             }
         }
 
-        // Поиск пользователей / глобальных комнат
         document.getElementById('search-input').addEventListener('input', function(e) {
             const query = e.target.value.trim();
             const chatsCont = document.getElementById('chats-container');
@@ -729,10 +740,9 @@
             });
         }
 
-        // Взаимодействие с файловыми вложениями
         function triggerFileInput() { document.getElementById('file-input').click(); }
 
-        function handleFileSelect() {
+        function sendFile() {
             const fileInput = document.getElementById('file-input');
             const file = fileInput.files[0];
             if (!file || !currentRoom) return;
@@ -758,10 +768,19 @@
         }
 
         // Управление модальными окнами
-        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-        function closeModals() {
-            document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+        function openModal(id) { 
+            const modal = document.getElementById(id);
+            modal.style.display = 'flex'; 
+            setTimeout(() => modal.classList.add('show'), 10);
         }
+        
+        function closeModals() {
+            document.querySelectorAll('.modal-overlay').forEach(m => {
+                m.classList.remove('show');
+                setTimeout(() => m.style.display = 'none', 230);
+            });
+        }
+        
         function handleOutsideClick(e, id) {
             if (e.target.id === id) closeModals();
         }
@@ -780,8 +799,33 @@
             }
         }
 
-        // Логика создания групп и списков контактов
-        function createGroup() {
+        // Роутинг методов из html_isprav
+        function openProfileModal() {
+            toggleMenu();
+            document.getElementById('profile-nickname').value = myUsername;
+            document.getElementById('profile-avatar-url').value = myAvatarUrl;
+            openModal('profile-modal');
+        }
+
+        function confirmUpdateProfile() {
+            const nickname = document.getElementById('profile-nickname').value.trim();
+            const avatarUrl = document.getElementById('profile-avatar-url').value.trim();
+            if (nickname && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    action: 'update_profile',
+                    nickname: nickname,
+                    avatar_url: avatarUrl
+                }));
+                closeModals();
+            }
+        }
+
+        function openCreateGroupModal() {
+            toggleMenu();
+            openModal('group-modal');
+        }
+
+        function confirmCreateGroup() {
             const val = document.getElementById('new-group-name').value.trim();
             if (val && ws) {
                 ws.send(JSON.stringify({ action: 'create_room', name: val }));
@@ -811,14 +855,12 @@
             users.forEach(u => {
                 if (u.username === myUsername) return;
 
-                // Для контактов ЛС
                 const itemC = document.createElement('div');
                 itemC.className = 'modal-list-item';
                 itemC.innerHTML = `<div class="modal-list-avatar">${u.username.charAt(0).toUpperCase()}</div><div>${escapeHTML(u.username)}</div>`;
                 itemC.onclick = () => { closeModals(); startPrivateChat(u.username); };
                 contactsCont.appendChild(itemC);
 
-                // Для добавления в группу
                 const itemA = document.createElement('div');
                 itemA.className = 'modal-list-item';
                 itemA.innerHTML = `<div class="modal-list-avatar">${u.username.charAt(0).toUpperCase()}</div><div>${escapeHTML(u.username)}</div>`;
@@ -839,9 +881,7 @@
             }
         }
 
-        // Открытие галереи картинок текущего чата
-        function openGalleryModal() {
-            toggleMenu();
+        function openChatGallery() {
             const grid = document.getElementById('gallery-grid-content');
             grid.innerHTML = '';
             
@@ -874,8 +914,11 @@
             openModal('gallery-modal');
         }
 
+        function startCallWithActiveUser() {
+            startCall();
+        }
+
         // =================================== LOGIC WEBRTC VOICE CALLING ===================================
-        
         function startCall() {
             if (!currentChatPartner) return;
             callTarget = currentChatPartner;
@@ -931,7 +974,6 @@
 
             if (payload.type === 'offer') {
                 if (peerConnection) {
-                    // Если занят, сбрасываем автоматически
                     if (ws) ws.send(JSON.stringify({ action: 'call_signal', target: sender, data: { type: 'busy' } }));
                     return;
                 }
@@ -983,24 +1025,19 @@
                 document.getElementById('localAudio').srcObject = stream;
                 setupPeerConnection();
 
-                sendCallSignal({ type: 'decline_placeholder_if_any_errors' }); // фиктивный триггер сброса состояний при сбое у вызывающего
+                sendCallSignal({ type: 'decline_placeholder_if_any_errors' });
                 
-                // Сигнализируем ответ вызывающей стороне
                 if (ws) {
                     ws.send(JSON.stringify({
                         action: 'call_signal',
                         target: callTarget,
-                        data: { type: 'ready_to_receive_offer' } // инвертируем хэндшейк при необходимости, либо запрашиваем реконнект
+                        data: { type: 'ready_to_receive_offer' }
                     }));
                 }
-                
-                // Для простоты — симулируем стандартный WebRTC Answer через получение сохраненного оффера
-                // Сервер перешлет повторно сессию
             })
             .catch(err => { alert("Нет доступа к микрофону"); declineCall(); });
         }
 
-        // Фикс цепочки хэндшейка для входящего стрима
         function executeDelayedOfferHandle(sender, offerPayload) {
              navigator.mediaDevices.getUserMedia({ audio: true, video: false })
              .then(stream => {
@@ -1018,11 +1055,9 @@
              .catch(err => { endCall(); });
         }
 
-        // Перегрузка роутера для фикса хэндшейка ответов
         const nativeHandleCallSignal = handleCallSignal;
         handleCallSignal = function(msg) {
             if (msg.data.type === 'offer' && !peerConnection) {
-                // Если окно входящего вызова не открыто, значит мы обрабатываем авто-акцепт
                 if (document.getElementById('incoming-call-modal').style.display === 'flex' || document.getElementById('call-status-modal').style.display === 'flex') {
                     if (document.getElementById('call-status-modal').style.display === 'flex') {
                         executeDelayedOfferHandle(msg.sender, msg.data.offer);
@@ -1031,7 +1066,6 @@
                 }
             }
             if (msg.data.type === 'ready_to_receive_offer') {
-                // Вызывающий пересоздает Offer для надежности канала
                 if (peerConnection) {
                     peerConnection.createOffer({ iceRestart: true })
                     .then(offer => peerConnection.setLocalDescription(offer))
@@ -1091,7 +1125,6 @@
             }
         }
 
-        // Точка входа при загрузке документа
         window.addEventListener('DOMContentLoaded', () => {
             connectWebSocket();
         });
