@@ -553,12 +553,21 @@
                 if (data.room === currentRoom) {
                     renderMessage(data, data.history);
                 }
-
+                
+                let lastSoundTime = 0;
+                const SOUND_COOLDOWN = 500; // Время в миллисекундах   
                 // Логика триггеров пушей и звука при входящем сообщении
-// Добавляем проверку && !data.history, чтобы не спамить при загрузке истории
-                if (data.username !== myUsername && !data.history) {
-                    playNotificationSound();
+                // Добавляем проверку && !data.history, чтобы не спамить при загрузке истории
+               if (data.username !== myUsername && !data.history) {
+                    let now = Date.now();
                     
+                    // Звук включится, только если прошло больше 1.5 секунд с прошлого раза
+                    if (now - lastSoundTime > SOUND_COOLDOWN) {
+                        playNotificationSound();
+                        lastSoundTime = now;
+                    }
+                    
+                    // Пуши (их можно оставить или тоже загнать под кулдаун)
                     let notifyText = data.msg_type === 'text' ? data.content : '[Медиафайл]';
                     let notifyTitle = isPrivate ? `Сообщение от ${data.username}` : `Группа: ${targetTitle}`;
                     sendPushNotification(notifyTitle, notifyText);
