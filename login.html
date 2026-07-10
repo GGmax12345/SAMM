@@ -5,73 +5,380 @@
     <title>SAM Messenger - Вход</title>
     <style>
         * { box-sizing: border-box; }
+        
         body {
-            background-color: #0e1621; color: #efeef1; margin: 0;
+            background: radial-gradient(circle at center, #070b14 0%, #020408 100%);
+            /* Чуть синеватый текст по всему body */
+            color: #dbe5ff; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            display: flex; justify-content: center; align-items: center; height: 100vh;
+            display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;
+            overflow: hidden;
+            perspective: 1000px;
         }
+
+        /* 1. ФОНАРИК ДЛЯ ЗАДНЕГО ФОНА (Снаружи) */
+        #cursor-glow-bg {
+            position: absolute;
+            width: 250px; 
+            height: 250px;
+            background: radial-gradient(circle, rgba(0, 160, 255, 0.3) 0%, transparent 60%);
+            filter: blur(15px);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        /* 2. ГЛАВНАЯ ПАНЕЛЬ */
         #auth-block {
-            background-color: #182533; border-radius: 10px; padding: 40px 30px; width: 360px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.3); text-align: center;
+            position: relative;
+            background: rgba(10, 16, 26, 0.7);
+            backdrop-filter: blur(35px);
+            -webkit-backdrop-filter: blur(35px);
+            border: 1px solid rgba(163, 191, 255, 0.05);
+            border-radius: 24px; 
+            padding: 40px 36px; 
+            width: 390px;
+            box-shadow: 0 40px 90px rgba(0, 0, 0, 0.95);
+            text-align: center; 
+            transform-style: preserve-3d;
+            z-index: 1;
+            /* Свечение текста для всех элементов внутри */
+            text-shadow: 0 0 8px rgba(163, 191, 255, 0.25);
+            overflow: hidden; /* Чтобы внутренний свет не вылезал */
         }
-        #auth-block h2 { margin: 0 0 10px 0; color: #fff; }
-        .auth-tabs { display: flex; margin-bottom: 20px; background: #0e1621; border-radius: 6px; padding: 3px; }
-        .tab { flex: 1; padding: 8px; cursor: pointer; color: #7f91a4; border-radius: 4px; font-weight: 500; }
-        .tab.active { background: #2481cc; color: #fff; }
-        .auth-input {
-            width: 100%; padding: 12px; margin: 8px 0; background-color: #0e1621;
-            border: 1px solid #111923; border-radius: 6px; color: white; outline: none;
+
+        /* ФОНАРИК ВНУТРИ ПАНЕЛИ (Светит сквозь кнопки) */
+        #panel-inner-glow {
+            position: absolute;
+            width: 350px; height: 350px;
+            background: radial-gradient(circle, rgba(0, 180, 255, 0.15) 0%, transparent 60%);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            opacity: 0; /* Выключен, пока мы не наведем на панель */
+            transition: opacity 0.4s ease;
         }
+
+        #auth-block h2 { 
+            position: relative; z-index: 2; 
+            margin: 0 0 30px 0; 
+            font-size: 28px;
+            font-weight: 700; 
+            background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: none;
+        }
+
+        /* 3. СТЕКЛЯННЫЕ ЭЛЕМЕНТЫ */
+        .glass-element {
+            position: relative;
+            width: 100%; margin: 14px 0;
+            /* Более прозрачный фон, чтобы внутренний свет панели просвечивал! */
+            background: rgba(12, 18, 30, 0.35); 
+            border-radius: 14px; 
+            transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(1);
+            transition: background 0.3s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1), box-shadow 0.3s;
+            z-index: 2;
+        }
+
+        .glass-glow {
+            position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: 1;
+        }
+        .glass-glow::before {
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(130px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 200, 255, 0.2), transparent 100%);
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+
+        /* МЯГКИЙ НЕОНОВЫЙ КРАЙ (в цвет дизайна) */
+        .glass-element::after {
+            content: ''; position: absolute; inset: -1px;
+            border-radius: inherit; padding: 2px;
+            background: radial-gradient(100px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 180, 255, 0.7) 0%, rgba(0, 100, 255, 0.3) 50%, transparent 100%);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+            pointer-events: none; z-index: 5; opacity: 0; 
+            transition: opacity 0.3s ease;
+        }
+
+        .glass-element:hover { background: rgba(8, 12, 22, 0.45); }
+        .glass-element:hover .glass-glow::before, .glass-element:hover::after { opacity: 1; }
+
+        .glass-element:active {
+            transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(0.96) translateY(3px) !important;
+            background: rgba(4, 6, 10, 0.98) !important; 
+        }
+        .glass-element:active .glass-glow::before { opacity: 0 !important; }
+        .glass-element:active::after { opacity: 0.2 !important; }
+
+        /* 4. ВКЛАДКИ И КАПСУЛА */
+        .tabs-glass {
+            background: rgba(12, 18, 28, 0.6); 
+            padding: 5px; 
+            margin-bottom: 25px;
+            display: flex; align-items: center;
+        }
+        .auth-tabs { display: flex; width: 100%; position: relative; z-index: 2; }
+        
+        .tab { 
+            flex: 1; padding: 12px 0; cursor: pointer; color: #5c7499; 
+            font-weight: 600; font-size: 14px; text-align: center;
+            position: relative; z-index: 3; transition: color 0.3s ease;
+        }
+        .tab.active { color: #dbe5ff; text-shadow: 0 0 12px rgba(0, 180, 255, 0.5); }
+
+        /* КАПСУЛА */
+        .tab-slider {
+            position: absolute; 
+            top: 5px; bottom: 5px; 
+            /* Стартовая позиция */
+            left: 5px; width: calc(50% - 5px); 
+            background: rgba(0, 150, 255, 0.2);
+            /* Мягкая рамка в цвет */
+            border: 1px solid rgba(0, 180, 255, 0.35);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 180, 255, 0.3), inset 0 0 10px rgba(0, 180, 255, 0.2);
+            z-index: 1; pointer-events: none;
+        }
+
+        /* 5. ПОЛЯ ВВОДА И ГЛАЗИК */
+        .auth-input { 
+            width: 100%; padding: 16px 45px 16px 16px; 
+            background: transparent; border: none; 
+            color: #dbe5ff; outline: none; 
+            position: relative; z-index: 4; font-size: 15px;
+        }
+        .auth-input::placeholder { color: #435368; text-shadow: none; }
+
+        .toggle-pass-btn {
+            position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; padding: 0; margin: 0;
+            color: #6e89b5; cursor: pointer; z-index: 10;
+            transition: color 0.3s ease, filter 0.3s ease;
+        }
+        .toggle-pass-btn:hover { 
+            color: #b0ccff; /* Светящийся синеватый цвет при наведении */
+            filter: drop-shadow(0 0 6px rgba(176, 204, 255, 0.6));
+        }
+        .toggle-pass-btn svg { width: 20px; height: 20px; }
+
+        #reg-pass-wrap {
+            max-height: 0; opacity: 0; overflow: hidden; margin: 0;
+            transition: max-height 0.4s ease, opacity 0.3s ease;
+        }
+        #reg-pass-wrap.expanded { max-height: 100px; opacity: 1; }
+
         .auth-btn {
-            width: 100%; padding: 12px; background-color: #2481cc; color: white;
-            border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 15px;
+            padding: 16px; margin-top: 15px;
+            background: rgba(0, 140, 255, 0.15);
+            font-weight: 600; cursor: pointer; color: #dbe5ff; font-size: 16px;
+            display: flex; justify-content: center; align-items: center; border: none;
         }
-        #auth-error { color: #e53935; font-size: 13px; margin-top: 12px; }
+        .auth-btn span { position: relative; z-index: 4; }
+
+        #auth-error { position: relative; z-index: 2; color: #ff5757; font-size: 14px; margin-top: 15px; min-height: 20px; text-align: center; }
     </style>
 </head>
 <body>
+
+    <div id="cursor-glow-bg"></div>
+
     <div id="auth-block">
+        <div id="panel-inner-glow"></div>
+
         <h2>SAM Messenger</h2>
-        <div class="auth-tabs">
-            <div id="tab-login" class="tab active" onclick="switchAuthTab('login')">Вход</div>
-            <div id="tab-reg" class="tab" onclick="switchAuthTab('register')">Регистрация</div>
+        
+        <div class="glass-element tabs-glass">
+            <div class="glass-glow"></div>
+            <div class="tab-slider" id="tab-slider"></div>
+            <div class="auth-tabs">
+                <div id="tab-login" class="tab active" onclick="switchAuthTab('login')">Вход</div>
+                <div id="tab-reg" class="tab" onclick="switchAuthTab('register')">Регистрация</div>
+            </div>
         </div>
-        <input type="text" id="auth-user" class="auth-input" placeholder="Имя пользователя" autocomplete="off">
-        <input type="password" id="auth-pass" class="auth-input" placeholder="Пароль">
-        <button class="auth-btn" onclick="submitAuth()">Войти</button>
+
+        <div class="glass-element">
+            <div class="glass-glow"></div>
+            <input type="text" id="auth-user" class="auth-input" placeholder="Имя пользователя" autocomplete="off">
+        </div>
+
+        <div class="glass-element">
+            <div class="glass-glow"></div>
+            <input type="password" id="auth-pass" class="auth-input" placeholder="Пароль">
+            <button class="toggle-pass-btn" onclick="togglePasswordVisibility('auth-pass', this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </button>
+        </div>
+
+        <div id="reg-pass-wrap">
+            <div class="glass-element">
+                <div class="glass-glow"></div>
+                <input type="password" id="auth-pass-repeat" class="auth-input" placeholder="Повторите пароль">
+                <button class="toggle-pass-btn" onclick="togglePasswordVisibility('auth-pass-repeat', this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <button class="auth-btn glass-element" onclick="submitAuth()">
+            <div class="glass-glow"></div>
+            <span id="btn-text">Войти в систему</span>
+        </button>
+        
         <div id="auth-error"></div>
     </div>
 
     <script>
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
         let currentAuthAction = 'login';
 
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            if (data.type === 'auth_result') {
-                if (data.success) {
-                    localStorage.setItem('sam_username', data.username);
-                    localStorage.setItem('sam_password', document.getElementById('auth-pass').value.trim());
-                    window.location.href = '/chat';
-                } else {
-                    document.getElementById('auth-error').textContent = data.error;
-                }
-            }
-        };
-
+        // --- 1. АНИМАЦИЯ КАПСУЛЫ (Полет, удар и сплющивание) ---
         function switchAuthTab(type) {
+            if (currentAuthAction === type) return;
             currentAuthAction = type;
-            document.getElementById('tab-login').classList.toggle('active', type === 'login');
-            document.getElementById('tab-reg').classList.toggle('active', type === 'register');
+            
+            const slider = document.getElementById('tab-slider');
+            const isReg = type === 'register';
+
+            // Этап 1: Срывается с места и вытягивается на всю длину
+            slider.style.transition = 'left 0.15s ease-in, width 0.15s ease-in';
+            slider.style.left = '5px';
+            slider.style.width = 'calc(100% - 10px)';
+
+            document.getElementById('tab-login').classList.toggle('active', !isReg);
+            document.getElementById('tab-reg').classList.toggle('active', isReg);
+
+            const regWrap = document.getElementById('reg-pass-wrap');
+            if (isReg) regWrap.classList.add('expanded');
+            else regWrap.classList.remove('expanded');
+
+            document.getElementById('btn-text').textContent = isReg ? 'Создать аккаунт' : 'Войти в систему';
             document.getElementById('auth-error').textContent = '';
+
+            // Этап 2: Бьется об стенку и пружинисто сжимается до нужного размера
+            setTimeout(() => {
+                // Очень пружинистая анимация (overshoot)
+                slider.style.transition = 'left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                slider.style.left = isReg ? '50%' : '5px';
+                slider.style.width = 'calc(50% - 5px)';
+            }, 150);
         }
 
-        function submitAuth() {
-            const u = document.getElementById('auth-user').value.trim();
-            const p = document.getElementById('auth-pass').value.trim();
-            if(u && p) ws.send(JSON.stringify({ action: currentAuthAction, username: u, password: p }));
+        // --- 2. ГЛАЗИК (Показать/Скрыть пароль) ---
+        function togglePasswordVisibility(inputId, btnElement) {
+            const input = document.getElementById(inputId);
+            const svgOpen = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+            const svgClosed = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+            
+            if (input.type === "password") {
+                input.type = "text";
+                btnElement.querySelector('svg').innerHTML = svgClosed;
+            } else {
+                input.type = "password";
+                btnElement.querySelector('svg').innerHTML = svgOpen;
+            }
         }
+
+        // --- 3. ФИЗИКА СВЕТА И ПАНЕЛИ ---
+        const authBlock = document.getElementById('auth-block');
+        const bgGlow = document.getElementById('cursor-glow-bg');
+        const innerGlow = document.getElementById('panel-inner-glow');
+        const glassElements = document.querySelectorAll('.glass-element');
+        
+        let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+        let glowX = mouseX, glowY = mouseY;
+        let blockCurrentX = 0, blockCurrentY = 0;
+        let blockTargetX = 0, blockTargetY = 0;
+        
+        let isOverMainPanel = false;
+
+        // Отслеживаем заход курсора на главную панель
+        authBlock.addEventListener('mouseenter', () => {
+            isOverMainPanel = true;
+            bgGlow.style.opacity = '0'; // Выключаем свет на заднем фоне
+            innerGlow.style.opacity = '1'; // Включаем свет внутри панели
+        });
+        authBlock.addEventListener('mouseleave', () => {
+            isOverMainPanel = false;
+            bgGlow.style.opacity = '1'; // Возвращаем свет на фон
+            innerGlow.style.opacity = '0'; // Гасим внутри
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX; mouseY = e.clientY;
+
+            // Логика качания:
+            if (isOverMainPanel) {
+                // Если мы на панели, она плавно выравнивается
+                blockTargetX = 0;
+                blockTargetY = 0;
+            } else {
+                // Если курсор вне панели, она тянется к нему
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                blockTargetX = ((centerY - mouseY) / centerY) * 12; // Сильный наклон
+                blockTargetY = ((mouseX - centerX) / centerX) * 12;
+            }
+        });
+
+        let elementsData = Array.from(glassElements).map(el => ({ el: el, tX: 0, tY: 0, cX: 0, cY: 0 }));
+
+        glassElements.forEach((el, index) => {
+            el.addEventListener('mouseleave', () => {
+                elementsData[index].tX = 0; elementsData[index].tY = 0;
+            });
+            el.addEventListener('mousemove', (e) => {
+                const rect = el.getBoundingClientRect();
+                const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+                
+                el.style.setProperty('--local-x', `${x}px`);
+                el.style.setProperty('--local-y', `${y}px`);
+
+                const dx = x - rect.width / 2; const dy = y - rect.height / 2;
+                elementsData[index].tX = (dx / (rect.width / 2)) * 4;
+                elementsData[index].tY = (dy / (rect.height / 2)) * 4;
+            });
+        });
+
+        function renderLoop() {
+            glowX += (mouseX - glowX) * 0.15;
+            glowY += (mouseY - glowY) * 0.15;
+            
+            // Двигаем оба фонарика
+            bgGlow.style.left = `${glowX}px`; bgGlow.style.top = `${glowY}px`;
+            
+            // Внутренний фонарик позиционируется относительно панели, вычисляем координаты
+            if (isOverMainPanel) {
+                const rect = authBlock.getBoundingClientRect();
+                innerGlow.style.left = `${glowX - rect.left}px`;
+                innerGlow.style.top = `${glowY - rect.top}px`;
+            }
+
+            // Качание панели
+            blockCurrentX += (blockTargetX - blockCurrentX) * 0.08;
+            blockCurrentY += (blockTargetY - blockCurrentY) * 0.08;
+            authBlock.style.transform = `rotateX(${blockCurrentX}deg) rotateY(${blockCurrentY}deg)`;
+
+            // Сдвиг кнопок
+            elementsData.forEach(data => {
+                data.cX += (data.tX - data.cX) * 0.1;
+                data.cY += (data.tY - data.cY) * 0.1;
+                data.el.style.setProperty('--translate-x', `${data.cX}px`);
+                data.el.style.setProperty('--translate-y', `${data.cY}px`);
+            });
+
+            requestAnimationFrame(renderLoop);
+        }
+        requestAnimationFrame(renderLoop);
+
+        function submitAuth() { console.log("Действие:", currentAuthAction); }
     </script>
 </body>
 </html>
