@@ -28,7 +28,7 @@ def hash_password(password: str) -> str:
 
 def get_ws_by_username(username):
     """Поиск активного веб-сокета пользователя по его нику для звонков"""
-    for ws, info in active_connections.items():
+    for ws, info in list(active_connections.items()):
         if info.get('username') == username:
             return ws
     return None
@@ -292,7 +292,7 @@ async def websocket_handler(request):
                     if target_user and room:
                         try:
                             await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", room, target_user)
-                            for client, info in active_connections.items():
+                            for client, info in list(active_connections.items()):
                                 if info["username"] == target_user:
                                     await client.send_json({"type": "new_group", "name": room})
                             await ws.send_json({"type": "success_msg", "text": f"Пользователь {target_user} добавлен в группу!"})
@@ -343,19 +343,38 @@ async def websocket_handler(request):
                         room, user_info["username"], content, msg_type, time_str
                     )
                     
-                    for client, info in active_connections.items():
+                    # ОПТИМИЗАЦИЯ: Получаем список разрешенных пользователей ОДИН раз перед циклом рассылки
+                    allowed_users = set()
+                    is_private = False
+                    
+                    if room.startswith("PRIVATE|"):
+                        is_private = True
+                        parts = room.split('|')
+                        if len(parts) == 3:
+                            allowed_users = {parts[1], parts[2]}
+                    else:
+                        # Получаем всех участников группы
+                        members_rows = await pool.fetch("SELECT username FROM room_members WHERE room_name = $1", room)
+                        allowed_users = {r['username'] for r in members_rows}
+                    
+                    # Рассылка сообщений по защищенной копии списка подключений
+                    for client, info in list(active_connections.items()):
                         if info["username"]:
-                            if room.startswith("PRIVATE|"):
-                                parts = room.split('|')
-                                if info["username"] not in (parts[1], parts[2]): continue
+                            if is_private:
+                                if info["username"] not in allowed_users: continue
                             else:
-                                member_check = await pool.fetchrow("SELECT 1 FROM room_members WHERE room_name = $1 AND username = $2", room, info["username"])
-                                if not member_check: continue
+                                # Если это групповой чат, сообщение доставляется тем, кто в списке участников,
+                                # ИЛИ тем, у кого прямо сейчас открыта эта комната (для работы публичных комнат)
+                                if info["username"] not in allowed_users and info.get("room") != room:
+                                    continue
                             
-                            await client.send_json({
-                                "type": "msg", "id": msg_id, "room": room, 
-                                "username": user_info["username"], "content": content, "msg_type": msg_type, "time": time_str
-                            })
+                            try:
+                                await client.send_json({
+                                    "type": "msg", "id": msg_id, "room": room, 
+                                    "username": user_info["username"], "content": content, "msg_type": msg_type, "time": time_str
+                                })
+                            except Exception:
+                                pass # Игнорируем ошибки отправки на мертвые сокеты
 
                 elif action == 'join_room':
                     room = data.get('room')
@@ -370,8 +389,11 @@ async def websocket_handler(request):
                     if active_connections[ws]["role"] == 'admin':
                         msg_id = data.get('msg_id')
                         await pool.execute("UPDATE messages SET content = 'Сообщение удалено администратором', msg_type = 'system' WHERE id = $1", msg_id)
-                        for client in active_connections:
-                            await client.send_json({"type": "delete_evt", "id": msg_id})
+                        for client in list(active_connections.keys()):
+                            try:
+                                await client.send_json({"type": "delete_evt", "id": msg_id})
+                            except Exception:
+                                pass
                             
                 elif action == 'ban_user':
                     if active_connections[ws]["role"] == 'admin':
