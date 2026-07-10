@@ -375,6 +375,69 @@
     <audio id="remoteAudio" autoplay></audio>
 
     <script>
+
+                function sendMessage() {
+            const input = document.getElementById('message-input'); // или как называется твое поле ввода
+            if (!input) return;
+
+            const text = input.value.trim();
+            if (!text && !selectedFile) return; // Не отправляем пустоту (если нет файла)
+
+            // Формируем объект сообщения
+            const messageData = {
+                room_id: currentRoom,
+                content: text,
+                type: 'text'
+            };
+
+            // ПРОВЕРКА: Как твой чат общается с сервером?
+            // Вариант А: Если вы используете WebSockets (переменная socket)
+            if (typeof socket !== 'undefined' && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify(messageData));
+            } 
+            // Вариант Б: Если вы отправляете обычным POST-запросом (Fetch)
+            else {
+                fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(messageData)
+                })
+                .then(res => res.json())
+                .then(msg => {
+                    // Если бэкенд вернул успешное сообщение, отрисовываем его вручную
+                    if (typeof appendMessage === 'function') {
+                        appendMessage(msg);
+                    }
+                })
+                .catch(err => console.error("Ошибка отправки:", err));
+            }
+
+            // Очищаем поле ввода и сбрасываем черновик в localStorage
+            input.value = '';
+            if (typeof currentRoom !== 'undefined') {
+                localStorage.removeItem('sam_draft_' + currentRoom);
+            }
+        }
+
+                document.addEventListener('DOMContentLoaded', () => {
+            const input = document.getElementById('message-input');
+            const sendBtn = document.getElementById('send-btn'); // проверь id своей кнопки
+
+            if (input) {
+                // Отправка по нажатию Enter (без Shift)
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+            }
+
+            if (sendBtn) {
+                sendBtn.addEventListener('click', sendMessage);
+            }
+        });
+
         // Инициализация фонового интерактивного свечения за курсором
         (function() {
             const glow = document.getElementById('cursor-glow-bg');
