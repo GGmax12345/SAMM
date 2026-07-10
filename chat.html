@@ -5,6 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no, viewport-fit=cover">
     <title>SAM Messenger</title>
+    <!-- Подключение современного и чистого шрифта Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { 
             box-sizing: border-box; 
@@ -12,12 +16,20 @@
             -moz-osx-font-smoothing: grayscale;
         }
         body {
-            background-color: #0e1621; color: #efeef1; margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: radial-gradient(circle at center, #0c1526 0%, #020408 100%);
+            color: #dbe5ff; margin: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex; height: 100vh; overflow: hidden;
             -webkit-tap-highlight-color: transparent;
         }
-        #main-app { width: 100vw; height: 100vh; position: relative; }
+        /* Фонарик, следующий за курсором */
+        #cursor-glow-bg {
+            position: fixed; width: 320px; height: 320px;
+            background: radial-gradient(circle, rgba(0, 160, 255, 0.16) 0%, transparent 65%);
+            filter: blur(15px); border-radius: 50%; pointer-events: none;
+            transform: translate(-50%, -50%); z-index: 0; top: 0; left: 0;
+        }
+        #main-app { width: 100vw; height: 100vh; position: relative; z-index: 1; }
         .app-layout { display: flex; height: 100%; width: 100%; position: relative; }
         
         /* Боковое меню (Личный кабинет) */
@@ -29,49 +41,52 @@
         }
         #side-menu { 
             position: fixed; top: 0; left: -300px; width: 290px; height: 100%; 
-            background-color: #17212b; z-index: 1001; 
+            background: rgba(10, 16, 26, 0.75); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+            border-right: 1px solid rgba(163, 191, 255, 0.08);
+            z-index: 1001; 
             transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1); 
-            box-shadow: 5px 0 25px rgba(0,0,0,0.4); display: flex; flex-direction: column;
+            box-shadow: 5px 0 25px rgba(0,0,0,0.6); display: flex; flex-direction: column;
             padding-top: env(safe-area-inset-top);
             padding-bottom: env(safe-area-inset-bottom);
         }
         #side-menu.open { left: 0; }
-        .menu-profile-header { padding: 30px 20px; background-color: #242f3d; border-bottom: 1px solid #10171e; }
-        .menu-avatar { width: 60px; height: 60px; border-radius: 50%; background: #2a94e6; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(42, 148, 230, 0.3); background-size: cover; background-position: center; }
-        .menu-name { font-weight: 600; color: #fff; font-size: 17px; }
-        .menu-status { font-size: 13px; color: #5288c1; margin-top: 4px; font-weight: 500;}
+        .menu-profile-header { padding: 30px 20px; background: rgba(0, 140, 255, 0.08); border-bottom: 1px solid rgba(163, 191, 255, 0.08); }
+        .menu-avatar { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #00a0ff 0%, #0060d0 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; box-shadow: 0 0 20px rgba(0, 160, 255, 0.4); background-size: cover; background-position: center; }
+        .menu-name { font-weight: 600; color: #fff; font-size: 17px; text-shadow: 0 0 8px rgba(163, 191, 255, 0.25); }
+        .menu-status { font-size: 13px; color: #6e89b5; margin-top: 4px; font-weight: 500;}
         .menu-items { padding: 10px 0; flex-grow: 1; overflow-y: auto; }
-        .menu-item { padding: 16px 20px; cursor: pointer; display: flex; align-items: center; gap: 15px; color: #e1e6eb; font-weight: 500; transition: background 0.2s ease; }
-        .menu-item:hover { background-color: #202b36; }
-        .menu-item:active { background-color: #24303f; }
-        .menu-icon { font-size: 20px; width: 24px; text-align: center; }
+        .menu-item { padding: 16px 24px; cursor: pointer; display: flex; align-items: center; color: #dbe5ff; font-weight: 500; font-size: 15px; transition: background 0.2s ease, padding-left 0.2s ease; }
+        .menu-item:hover { background: rgba(0, 150, 255, 0.1); padding-left: 28px; color: #fff; }
+        .menu-item:active { background: rgba(0, 150, 255, 0.18); }
 
         /* Панель списка чатов (Сайдбар) */
-        .sidebar { width: 340px; background-color: #17212b; border-right: 1px solid #10171e; display: flex; flex-direction: column; flex-shrink: 0; transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
+        .sidebar { width: 340px; background: rgba(10, 16, 26, 0.55); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border-right: 1px solid rgba(163, 191, 255, 0.06); display: flex; flex-direction: column; flex-shrink: 0; transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
         .sidebar-header { 
-            padding: 14px 16px; display: flex; align-items: center; gap: 12px; background: #17212b; 
+            padding: 14px 16px; display: flex; align-items: center; gap: 12px; background: rgba(10, 16, 26, 0.4); 
             padding-top: calc(14px + env(safe-area-inset-top));
-            border-bottom: 1px solid rgba(16, 23, 30, 0.5);
+            border-bottom: 1px solid rgba(163, 191, 255, 0.06);
         }
-        .hamburger { font-size: 22px; color: #7f91a4; cursor: pointer; user-select: none; padding: 6px; transition: color 0.2s; }
-        .hamburger:hover { color: #fff; }
-        .search-bar { flex-grow: 1; background: #24303f; border: none; border-radius: 22px; padding: 10px 16px; color: #fff; outline: none; font-size: 15px; transition: background 0.2s; }
-        .search-bar:focus { background: #2b394a; }
+        .hamburger { font-size: 22px; color: #6e89b5; cursor: pointer; user-select: none; padding: 6px; transition: color 0.2s; }
+        .hamburger:hover { color: #b0ccff; filter: drop-shadow(0 0 6px rgba(176, 204, 255, 0.5)); }
+        .search-bar { flex-grow: 1; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.06); border-radius: 22px; padding: 10px 16px; color: #dbe5ff; outline: none; font-family: inherit; font-size: 15px; transition: background 0.2s, border 0.2s; }
+        .search-bar::placeholder { color: #435368; }
+        .search-bar:focus { background: rgba(8, 12, 22, 0.7); border-color: rgba(0, 180, 255, 0.35); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
         
         .room-list { flex-grow: 1; overflow-y: auto; scrollbar-width: none; }
         .room-list::-webkit-scrollbar { display: none; }
         
-        .room-item { display: flex; align-items: center; padding: 14px 16px; cursor: pointer; gap: 14px; border-bottom: 1px solid rgba(16, 23, 30, 0.2); transition: background-color 0.2s ease; }
-        .room-item:hover { background-color: #202b36; }
-        .room-item:active { background-color: #24303f; }
-        .room-item.active { background-color: #2b394a; }
+        .room-item { display: flex; align-items: center; padding: 14px 16px; cursor: pointer; gap: 14px; border-bottom: 1px solid rgba(163, 191, 255, 0.05); transition: background-color 0.2s ease; }
+        .room-item:hover { background: rgba(0, 150, 255, 0.06); }
+        .room-item:active { background: rgba(0, 150, 255, 0.12); }
+        .room-item.active { background: rgba(0, 150, 255, 0.14); box-shadow: inset 3px 0 0 rgba(0, 180, 255, 0.6); }
         
         /* Обёртка аватарки и статус-индикатор */
         .avatar-wrapper { position: relative; display: inline-block; flex-shrink: 0; }
-        .avatar { width: 52px; height: 52px; border-radius: 50%; background: #2f6ea5; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; text-transform: uppercase; flex-shrink: 0; transition: transform 0.2s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.2); background-size: cover; background-position: center; }
+        .avatar { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #1c7fd6 0%, #0a4f96 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; text-transform: uppercase; flex-shrink: 0; transition: transform 0.2s ease; box-shadow: 0 0 12px rgba(0, 140, 255, 0.25); background-size: cover; background-position: center; }
         .online-dot { 
             position: absolute; bottom: 1px; right: 1px; width: 13px; height: 13px; 
-            background-color: #4caf50; border: 2.5px solid #17212b; border-radius: 50%; 
+            background-color: #4caf50; border: 2.5px solid #0c1526; border-radius: 50%; 
+            box-shadow: 0 0 6px rgba(76, 175, 80, 0.7);
             display: none; z-index: 5;
         }
         .room-item.online .online-dot { display: block; }
@@ -79,27 +94,27 @@
         .room-info { flex-grow: 1; min-width: 0; }
         .room-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .room-name { font-weight: 600; color: #fff; font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .room-time { color: #7f91a4; font-size: 12px; font-weight: 500; }
-        .room-preview { color: #7f91a4; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .room-time { color: #6e89b5; font-size: 12px; font-weight: 500; }
+        .room-preview { color: #6e89b5; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
         /* Главная область чата */
         .chat-area { 
-            flex-grow: 1; display: flex; flex-direction: column; background: #0e1621; 
-            background-image: url('https://user-images.githubusercontent.com/15082143/114170940-bf38b580-9943-11eb-8c9e-5b169527ec68.jpg'); 
-            background-size: cover; background-position: center; background-attachment: fixed; 
+            flex-grow: 1; display: flex; flex-direction: column; 
+            background: radial-gradient(circle at 50% 0%, #10203a 0%, #05070d 100%); 
             transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); 
         }
         .chat-header { 
-            padding: 10px 16px; background-color: rgba(23, 33, 43, 0.9); 
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(16, 23, 30, 0.5); display: flex; align-items: center; gap: 12px; 
+            padding: 10px 16px; background: rgba(10, 16, 26, 0.6); 
+            backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+            border-bottom: 1px solid rgba(163, 191, 255, 0.06); display: flex; align-items: center; gap: 12px; 
             min-height: 60px; padding-top: calc(10px + env(safe-area-inset-top));
             z-index: 10;
         }
         
         /* Кнопка назад */
-        .back-btn { display: none; font-size: 20px; color: #5288c1; cursor: pointer; padding: 8px 12px 8px 4px; user-select: none; font-weight: bold; }
-        .chat-title { font-weight: 600; color: #fff; font-size: 16.5px; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .back-btn { display: none; font-size: 20px; color: #6e89b5; cursor: pointer; padding: 8px 12px 8px 4px; user-select: none; font-weight: bold; }
+        .chat-title { font-weight: 700; font-size: 16.5px; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .messages-container { flex-grow: 1; padding: 20px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; scrollbar-width: none; }
         .messages-container::-webkit-scrollbar { display: none; }
         
@@ -109,13 +124,15 @@
         
         .msg-row.my-row { justify-content: flex-end; }
         .msg-block { 
-            background-color: #182533; padding: 8px 14px 6px 14px; border-radius: 16px 16px 16px 4px; 
+            background: rgba(16, 24, 38, 0.7); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(163, 191, 255, 0.07);
+            padding: 8px 14px 6px 14px; border-radius: 16px 16px 16px 4px; 
             max-width: 75%; position: relative; color: #f5f5f5; display: flex; flex-direction: column; 
-            box-shadow: 0 1.5px 3px rgba(0,0,0,0.2); 
+            box-shadow: 0 4px 14px rgba(0,0,0,0.35); 
         }
-        .msg-row.my-row .msg-block { background-color: #2b5278; border-radius: 16px 16px 4px 16px; }
-        .msg-block.system-msg { background-color: rgba(19, 28, 38, 0.85) !important; border: 1px dashed #ff7b72; color: #8b949e; font-style: italic; align-self: center; border-radius: 10px; }
-        .msg-author { font-size: 13px; color: #5288c1; font-weight: 600; margin-bottom: 4px; }
+        .msg-row.my-row .msg-block { background: rgba(0, 110, 220, 0.28); border: 1px solid rgba(0, 180, 255, 0.2); border-radius: 16px 16px 4px 16px; box-shadow: 0 4px 14px rgba(0, 110, 220, 0.2); }
+        .msg-block.system-msg { background: rgba(19, 28, 38, 0.85) !important; border: 1px dashed #ff7b72; color: #8b949e; font-style: italic; align-self: center; border-radius: 10px; }
+        .msg-author { font-size: 13px; color: #5ab0ff; font-weight: 600; margin-bottom: 4px; text-shadow: 0 0 8px rgba(0, 160, 255, 0.3); }
         .msg-row.my-row .msg-author { display: none; }
         .msg-body { font-size: 15px; line-height: 1.45; word-break: break-word; padding-right: 40px; padding-bottom: 4px; }
         .msg-body img { max-width: 100%; max-height: 280px; border-radius: 10px; margin-top: 6px; display: block; }
@@ -126,15 +143,15 @@
         
         .download-btn {
             display: inline-flex; align-items: center; gap: 6px;
-            margin-top: 8px; padding: 8px 14px; background: #24303f;
+            margin-top: 8px; padding: 8px 14px; background: rgba(0, 140, 255, 0.1);
             color: #fff !important; text-decoration: none; font-size: 12.5px;
-            border-radius: 8px; border: 1px solid #2b394a; font-weight: 500; width: fit-content;
+            border-radius: 8px; border: 1px solid rgba(0, 180, 255, 0.2); font-weight: 500; width: fit-content;
             transition: background 0.2s;
         }
-        .download-btn:hover { background: #2b394a; }
-        .msg-row.my-row .download-btn { background: #1c354e; border-color: #234363; }
+        .download-btn:hover { background: rgba(0, 140, 255, 0.2); }
+        .msg-row.my-row .download-btn { background: rgba(0, 180, 255, 0.15); border-color: rgba(0, 180, 255, 0.3); }
         
-        .msg-time { position: absolute; right: 10px; bottom: 5px; font-size: 10.5px; color: #7f91a4; font-weight: 500; }
+        .msg-time { position: absolute; right: 10px; bottom: 5px; font-size: 10.5px; color: #6e89b5; font-weight: 500; }
         
         .admin-actions { display: none; margin-top: 6px; font-size: 11.5px; gap: 12px; border-top: 1px solid rgba(36, 48, 63, 0.6); padding-top: 6px; }
         .admin-active .admin-actions { display: flex; }
@@ -143,19 +160,20 @@
         /* Нижняя панель ввода */
         .input-panel { 
             padding: 10px 16px; display: flex; gap: 12px; 
-            background-color: rgba(23, 33, 43, 0.95); align-items: center;
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            background: rgba(10, 16, 26, 0.7); align-items: center;
+            backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
             padding-bottom: calc(10px + env(safe-area-inset-bottom));
-            border-top: 1px solid rgba(16, 23, 30, 0.4);
+            border-top: 1px solid rgba(163, 191, 255, 0.06);
             z-index: 10;
         }
-        .attach-btn { color: #7f91a4; font-size: 24px; cursor: pointer; user-select: none; padding: 4px; transition: color 0.2s; }
-        .attach-btn:hover { color: #fff; }
+        .attach-btn { color: #6e89b5; font-size: 24px; cursor: pointer; user-select: none; padding: 4px; transition: color 0.2s; }
+        .attach-btn:hover { color: #b0ccff; filter: drop-shadow(0 0 6px rgba(176, 204, 255, 0.5)); }
         #file-input { display: none; }
-        #message-input { flex-grow: 1; padding: 11px 16px; background-color: #0e1621; border: 1px solid rgba(16, 23, 30, 0.5); border-radius: 24px; color: white; outline: none; font-size: 15px; transition: border 0.2s; }
-        #message-input:focus { border-color: #2b5278; }
-        #send-btn { color: #5288c1; font-size: 15px; font-weight: bold; cursor: pointer; user-select: none; padding: 8px; transition: color 0.2s, transform 0.1s; text-transform: uppercase; letter-spacing: 0.5px; }
-        #send-btn:hover { color: #649cd4; }
+        #message-input { flex-grow: 1; padding: 11px 16px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.07); border-radius: 24px; color: #dbe5ff; outline: none; font-family: inherit; font-size: 15px; transition: border 0.2s, box-shadow 0.2s; }
+        #message-input::placeholder { color: #435368; }
+        #message-input:focus { border-color: rgba(0, 180, 255, 0.4); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
+        #send-btn { color: #5ab0ff; font-size: 15px; font-weight: bold; cursor: pointer; user-select: none; padding: 8px; transition: color 0.2s, transform 0.1s; text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 0 0 10px rgba(0, 160, 255, 0.4); }
+        #send-btn:hover { color: #8fceff; }
         #send-btn:active { transform: scale(0.95); }
         
         /* Модалки */
@@ -166,37 +184,39 @@
             backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
         }
         .modal-box { 
-            background: #17212b; padding: 24px; border-radius: 16px; width: 100%; 
-            max-width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); 
+            background: rgba(10, 16, 26, 0.75); backdrop-filter: blur(35px); -webkit-backdrop-filter: blur(35px);
+            padding: 24px; border-radius: 16px; width: 100%; 
+            max-width: 340px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); 
             transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 1px solid rgba(163, 191, 255, 0.08);
         }
         .modal-overlay.show { opacity: 1; }
         .modal-overlay.show .modal-box { transform: scale(1); }
-        .modal-box h3 { margin-top: 0; color: #fff; font-size: 19px; font-weight: 600; margin-bottom: 16px; }
+        .modal-box h3 { margin-top: 0; color: #fff; font-size: 19px; font-weight: 600; margin-bottom: 16px; text-shadow: 0 0 8px rgba(163, 191, 255, 0.25); }
         .modal-list { max-height: 260px; overflow-y: auto; margin-bottom: 16px; }
-        .modal-list-item { padding: 12px; cursor: pointer; border-bottom: 1px solid #24303f; color: #e1e6eb; display: flex; align-items: center; gap: 12px; transition: background 0.15s; border-radius: 8px; }
-        .modal-list-item:hover { background: #202b36; }
-        .modal-input { width: 100%; padding: 12px 14px; background: #0e1621; border: 1px solid #24303f; color: white; border-radius: 10px; margin-bottom: 20px; outline: none; font-size: 15px; }
-        .modal-input:focus { border-color: #2481cc; }
+        .modal-list-item { padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(163, 191, 255, 0.06); color: #dbe5ff; display: flex; align-items: center; gap: 12px; transition: background 0.15s; border-radius: 8px; font-size: 15px; }
+        .modal-list-item:hover { background: rgba(0, 150, 255, 0.08); }
+        .modal-input { width: 100%; padding: 12px 14px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.08); color: #dbe5ff; border-radius: 10px; margin-bottom: 20px; outline: none; font-family: inherit; font-size: 15px; transition: border 0.2s, box-shadow 0.2s; }
+        .modal-input:focus { border-color: rgba(0, 180, 255, 0.45); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
         .modal-btns { display: flex; justify-content: flex-end; gap: 10px; }
         
-        .btn-cancel { background: transparent; color: #7f91a4; border: none; cursor: pointer; padding: 10px 16px; font-weight: 600; font-size: 14px; }
-        .btn-primary { background: #2481cc; color: white; border: none; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; }
-        .btn-primary:hover { background: #2f93e0; }
-        .btn-danger { background: #e53935; color: white; border: none; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; }
-        .btn-danger:hover { background: #ef5350; }
-        .btn-success { background: #43a047; color: white; border: none; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; }
-        .btn-success:hover { background: #4caf50; }
+        .btn-cancel { background: transparent; color: #6e89b5; border: none; cursor: pointer; padding: 10px 16px; font-weight: 600; font-size: 14px; font-family: inherit; }
+        .btn-cancel:hover { color: #b0ccff; }
+        .btn-primary { background: rgba(0, 140, 255, 0.18); border: 1px solid rgba(0, 180, 255, 0.35); color: #dbe5ff; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; font-family: inherit; transition: background 0.2s; box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
+        .btn-primary:hover { background: rgba(0, 140, 255, 0.3); }
+        .btn-danger { background: rgba(229, 57, 53, 0.18); border: 1px solid rgba(255, 100, 100, 0.35); color: #ffb3b0; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; font-family: inherit; transition: background 0.2s; }
+        .btn-danger:hover { background: rgba(229, 57, 53, 0.3); }
+        .btn-success { background: rgba(67, 160, 71, 0.18); border: 1px solid rgba(100, 220, 100, 0.35); color: #b6f0b8; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; font-family: inherit; transition: background 0.2s; }
+        .btn-success:hover { background: rgba(67, 160, 71, 0.3); }
 
-        #empty-chat-msg { text-align: center; color: #7f91a4; background: rgba(23, 33, 43, 0.85); padding: 14px 24px; border-radius: 20px; margin: auto; font-size: 14.5px; max-width: 85%; line-height: 1.4; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        .header-action-btn { background: transparent; border: none; color: #5288c1; font-size: 20px; cursor: pointer; padding: 8px; border-radius: 50%; transition: background 0.2s, color 0.2s; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
-        .header-action-btn:hover { background: #24303f; color: #fff; }
+        #empty-chat-msg { text-align: center; color: #6e89b5; background: rgba(10, 16, 26, 0.6); backdrop-filter: blur(20px); padding: 14px 24px; border-radius: 20px; margin: auto; font-size: 14.5px; max-width: 85%; line-height: 1.4; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid rgba(163, 191, 255, 0.06); }
+        .header-action-btn { background: transparent; border: none; color: #5ab0ff; font-size: 20px; cursor: pointer; padding: 8px; border-radius: 50%; transition: background 0.2s, color 0.2s; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
+        .header-action-btn:hover { background: rgba(0, 150, 255, 0.12); color: #fff; }
         .pulse-btn { animation: phonePulse 1.2s infinite alternate; box-shadow: 0 0 15px rgba(67, 160, 71, 0.4); }
         @keyframes phonePulse { from { transform: scale(1); } to { transform: scale(1.08); } }
         #localAudio, #remoteAudio { display: none; }
 
-        /* ================= MOBILE RESPONSIVE LOGIC (TELEGRAM STYLE) ================= */
+        /* ================= MOBILE RESPONSIVE LOGIC ================= */
         @media (max-width: 768px) {
             .sidebar {
                 width: 100%; position: absolute; left: 0; top: 0; height: 100%; z-index: 5;
@@ -220,11 +240,12 @@
             .chat-header { min-height: 64px; }
             .avatar { width: 46px; height: 46px; font-size: 18px; }
             .room-item { padding: 12px 14px; }
-            .menu-item { padding: 18px 20px; } /* Крупнее на мобилках */
+            .menu-item { padding: 18px 24px; }
         }
     </style>
 </head>
 <body>
+    <div id="cursor-glow-bg"></div>
     <div id="main-app">
         <div id="side-menu-overlay" onclick="toggleMenu()"></div>
         <div id="side-menu">
@@ -233,12 +254,13 @@
                 <div class="menu-name" id="menu-username">Username</div>
                 <div class="menu-status">SAM Личный кабинет</div>
             </div>
+            <!-- Иконки полностью убраны из меню для чистого минималистичного вида -->
             <div class="menu-items">
-                <div class="menu-item" onclick="window.location.href='/apps'"><span class="menu-icon">📥</span> Скачать приложение</div>
-                <div class="menu-item" onclick="openProfileModal()"><span class="menu-icon">✏️</span> Профиль и Аватарка</div>
-                <div class="menu-item" onclick="openCreateGroupModal()"><span class="menu-icon">👥</span> Создать группу</div>
-                <div class="menu-item" onclick="openContactsModal()"><span class="menu-icon">👤</span> Контакты</div>
-                <div class="menu-item" onclick="localStorage.clear(); window.location.href='/'"><span class="menu-icon">🚪</span> Выйти</div>
+                <div class="menu-item" onclick="window.location.href='/apps'">Скачать приложение</div>
+                <div class="menu-item" onclick="openProfileModal()">Профиль и Аватарка</div>
+                <div class="menu-item" onclick="openCreateGroupModal()">Создать группу</div>
+                <div class="menu-item" onclick="openContactsModal()">Контакты</div>
+                <div class="menu-item" onclick="localStorage.clear(); window.location.href='/'">Выйти</div>
             </div>
         </div>
 
@@ -246,9 +268,9 @@
         <div id="profile-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Настройки профиля</h3>
-                <label style="color: #7f91a4; font-size: 13px; display: block; margin-bottom: 6px;">Ваш никнейм:</label>
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">Ваш никнейм:</label>
                 <input type="text" id="profile-nickname" class="modal-input" placeholder="Введите новый ник...">
-                <label style="color: #7f91a4; font-size: 13px; display: block; margin-bottom: 6px;">URL-ссылка на аватарку:</label>
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">URL-ссылка на аватарку:</label>
                 <input type="text" id="profile-avatar-url" class="modal-input" placeholder="https://example.com/photo.jpg">
                 <div class="modal-btns">
                     <button class="btn-cancel" onclick="closeModals()">Отмена</button>
@@ -293,7 +315,7 @@
         <div id="incoming-call-modal" class="modal-overlay">
             <div class="modal-box" style="text-align: center;">
                 <h3 style="margin-bottom: 5px;">Входящий вызов</h3>
-                <div id="caller-name" style="color: #7f91a4; font-size: 16px; margin-bottom: 24px; font-weight: 500;">Пользователь</div>
+                <div id="caller-name" style="color: #6e89b5; font-size: 16px; margin-bottom: 24px; font-weight: 500;">Пользователь</div>
                 <div class="modal-btns" style="justify-content: center; gap: 20px;">
                     <button class="btn-danger" onclick="declineCall()">Отклонить</button>
                     <button class="btn-success pulse-btn" onclick="acceptCall()">Принять</button>
@@ -305,7 +327,7 @@
         <div id="call-status-modal" class="modal-overlay">
             <div class="modal-box" style="text-align: center;">
                 <h3 id="call-status-text">Установка связи...</h3>
-                <div id="call-timer" style="color: #5288c1; font-weight: bold; margin: 20px 0; font-size: 22px; letter-spacing: 1px;">00:00</div>
+                <div id="call-timer" style="color: #5ab0ff; font-weight: bold; margin: 20px 0; font-size: 22px; letter-spacing: 1px;">00:00</div>
                 <div class="modal-btns" style="justify-content: center;">
                     <button class="btn-danger" onclick="hangUp()">Положить трубку</button>
                 </div>
@@ -316,9 +338,7 @@
         <div id="gallery-modal" class="modal-overlay">
             <div class="modal-box" style="max-width: 450px; width: 90%;">
                 <h3>Медиа файлы чата</h3>
-                <div id="gallery-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px;">
-                    <!-- Картинки будут подгружаться сюда динамически -->
-                </div>
+                <div id="gallery-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px;"></div>
                 <div class="modal-btns" style="margin-top: 15px;">
                     <button class="btn-cancel" onclick="closeModals()">Закрыть</button>
                 </div>
@@ -335,7 +355,6 @@
                     <div class="hamburger" onclick="toggleMenu()">☰</div>
                     <input type="text" class="search-bar" placeholder="Поиск">
                 </div>
-                <!-- РАЗДЕЛЕНИЕ КОНТЕЙНЕРОВ ДЛЯ ЗАЩИТЫ ОТ СТИРАНИЯ ДАННЫХ ПРИ ПОИСКЕ -->
                 <div class="room-list" id="sidebar-room-list">
                     <div id="chats-container"></div>
                     <div id="search-container" style="display: none;"></div>
@@ -369,7 +388,6 @@
     <script>
         const u = localStorage.getItem('sam_username');
         const p = localStorage.getItem('sam_password');
-        if(!u || !p) window.location.href = '/';
 
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
@@ -380,16 +398,27 @@
         let currentChatPartner = null; 
         let renderedRooms = new Set();
 
-        // Переменные WebRTC
         let localStream = null;
         let peerConnection = null;
         let callTarget = null;
         let callTimerInterval = null;
         let callSeconds = 0;
-        let iceCandidateQueue = []; // Очередь для предотвращения асинхронных сбоев ICE
+        let iceCandidateQueue = []; 
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        // Хелпер экранирования от XSS уязвимостей
+        // Плавное слежение за курсором мыши
+        (function() {
+            const glow = document.getElementById('cursor-glow-bg');
+            let mx = window.innerWidth / 2, my = window.innerHeight / 2, gx = mx, gy = my;
+            document.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; });
+            function loop() {
+                gx += (mx - gx) * 0.15; gy += (my - gy) * 0.15;
+                glow.style.left = gx + 'px'; glow.style.top = gy + 'px';
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
+        })();
+
         function escapeHTML(str) {
             if (!str) return '';
             return str.toString()
@@ -533,7 +562,6 @@
             }
             else if (data.type === 'webrtc_signal') {
                 if (!peerConnection) {
-                    // Страховочный вызов, если соединение еще не создалось асинхронно
                     await startWebRTCPeer(false);
                 }
                 
@@ -548,7 +576,6 @@
                             signal: { sdp: peerConnection.localDescription }
                         }));
                     }
-                    // Обрабатываем накопившиеся кандидаты после установки RemoteDescription
                     while (iceCandidateQueue.length > 0) {
                         const candidate = iceCandidateQueue.shift();
                         try { await peerConnection.addIceCandidate(candidate); } catch(e) {}
@@ -566,7 +593,6 @@
             }
         };
 
-        // ОТСЛЕЖИВАНИЕ ПОИСКОВОЙ СТРОКИ ЧЕРЕЗ НЕЗАВИСИМЫЕ КОНТЕЙНЕРЫ
         document.querySelector('.search-bar').addEventListener('input', function(e) {
             const query = e.target.value.trim();
             const chatsCont = document.getElementById('chats-container');
@@ -592,7 +618,7 @@
             searchCont.innerHTML = '';
             
             if (results.length === 0) {
-                searchCont.innerHTML = '<div style="padding: 16px; color: #7f91a4; text-align: center; font-size: 14.5px;">Ничего не найдено</div>';
+                searchCont.innerHTML = '<div style="padding: 16px; color: #6e89b5; text-align: center; font-size: 14.5px;">Ничего не найдено</div>';
                 return;
             }
 
@@ -804,7 +830,7 @@
         function sendTextMessage() {
             const input = document.getElementById('message-input');
             const text = input.value.trim();
-            if (text && currentRoom && ws && ws.readyState === WebSocket.OPEN) {
+            if (text && currentRoom) {
                 ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: text, msg_type: 'text' }));
                 input.value = '';
             }
@@ -821,7 +847,7 @@
             fetch('/upload', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
-                if (data.success && ws && ws.readyState === WebSocket.OPEN) {
+                if (data.success) {
                     const contentPayload = { name: data.name, url: data.url };
                     ws.send(JSON.stringify({ 
                         action: 'send_msg', 
@@ -835,7 +861,7 @@
             })
             .catch(err => {
                 console.error(err);
-                alert("Не удалось загрузить файл на сервер.");
+                alert("Не удалось загрузить файл на server.");
             });
             fileInput.value = '';
         }
@@ -890,7 +916,6 @@
 
         function deleteMessage(id) { if(confirm("Удалить?")) ws.send(JSON.stringify({ action: 'delete_msg', msg_id: id })); }
 
-        // --- WEBRTC ЛОГИКА ---
         function startCallWithActiveUser() {
             if (!currentChatPartner) return;
             callTarget = currentChatPartner;
@@ -999,7 +1024,7 @@
             const images = document.querySelectorAll('#messages .msg-body img');
             
             if (images.length === 0) {
-                grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #7f91a4; padding: 20px; font-size: 14px;">В этом чате еще нет изображений</div>';
+                grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #6e89b5; padding: 20px; font-size: 14px;">В этом чате еще нет изображений</div>';
             } else {
                 images.forEach(img => {
                     const clone = img.cloneNode(true);
