@@ -555,7 +555,8 @@
                 }
 
                 // Логика триггеров пушей и звука при входящем сообщении
-                if (data.username !== myUsername) {
+// Добавляем проверку && !data.history, чтобы не спамить при загрузке истории
+                if (data.username !== myUsername && !data.history) {
                     playNotificationSound();
                     
                     let notifyText = data.msg_type === 'text' ? data.content : '[Медиафайл]';
