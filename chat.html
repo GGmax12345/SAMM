@@ -5,10 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no, viewport-fit=cover">
     <title>SAM Messenger</title>
-    <!-- Подключение современного и чистого шрифта Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { 
             box-sizing: border-box; 
@@ -18,11 +14,10 @@
         body {
             background: radial-gradient(circle at center, #0c1526 0%, #020408 100%);
             color: #dbe5ff; margin: 0;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex; height: 100vh; overflow: hidden;
             -webkit-tap-highlight-color: transparent;
         }
-        /* Фонарик, следующий за курсором */
         #cursor-glow-bg {
             position: fixed; width: 320px; height: 320px;
             background: radial-gradient(circle, rgba(0, 160, 255, 0.16) 0%, transparent 65%);
@@ -32,7 +27,6 @@
         #main-app { width: 100vw; height: 100vh; position: relative; z-index: 1; }
         .app-layout { display: flex; height: 100%; width: 100%; position: relative; }
         
-        /* Боковое меню (Личный кабинет) */
         #side-menu-overlay { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0,0,0,0.6); z-index: 1000; opacity: 0; 
@@ -55,11 +49,11 @@
         .menu-name { font-weight: 600; color: #fff; font-size: 17px; text-shadow: 0 0 8px rgba(163, 191, 255, 0.25); }
         .menu-status { font-size: 13px; color: #6e89b5; margin-top: 4px; font-weight: 500;}
         .menu-items { padding: 10px 0; flex-grow: 1; overflow-y: auto; }
-        .menu-item { padding: 16px 24px; cursor: pointer; display: flex; align-items: center; color: #dbe5ff; font-weight: 500; font-size: 15px; transition: background 0.2s ease, padding-left 0.2s ease; }
-        .menu-item:hover { background: rgba(0, 150, 255, 0.1); padding-left: 28px; color: #fff; }
+        .menu-item { padding: 16px 20px; cursor: pointer; display: flex; align-items: center; gap: 15px; color: #dbe5ff; font-weight: 500; transition: background 0.2s ease; }
+        .menu-item:hover { background: rgba(0, 150, 255, 0.1); }
         .menu-item:active { background: rgba(0, 150, 255, 0.18); }
+        .menu-icon { font-size: 20px; width: 24px; text-align: center; }
 
-        /* Панель списка чатов (Сайдбар) */
         .sidebar { width: 340px; background: rgba(10, 16, 26, 0.55); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border-right: 1px solid rgba(163, 191, 255, 0.06); display: flex; flex-direction: column; flex-shrink: 0; transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
         .sidebar-header { 
             padding: 14px 16px; display: flex; align-items: center; gap: 12px; background: rgba(10, 16, 26, 0.4); 
@@ -68,7 +62,7 @@
         }
         .hamburger { font-size: 22px; color: #6e89b5; cursor: pointer; user-select: none; padding: 6px; transition: color 0.2s; }
         .hamburger:hover { color: #b0ccff; filter: drop-shadow(0 0 6px rgba(176, 204, 255, 0.5)); }
-        .search-bar { flex-grow: 1; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.06); border-radius: 22px; padding: 10px 16px; color: #dbe5ff; outline: none; font-family: inherit; font-size: 15px; transition: background 0.2s, border 0.2s; }
+        .search-bar { flex-grow: 1; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.06); border-radius: 22px; padding: 10px 16px; color: #dbe5ff; outline: none; font-size: 15px; transition: background 0.2s, border 0.2s; }
         .search-bar::placeholder { color: #435368; }
         .search-bar:focus { background: rgba(8, 12, 22, 0.7); border-color: rgba(0, 180, 255, 0.35); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
         
@@ -80,7 +74,6 @@
         .room-item:active { background: rgba(0, 150, 255, 0.12); }
         .room-item.active { background: rgba(0, 150, 255, 0.14); box-shadow: inset 3px 0 0 rgba(0, 180, 255, 0.6); }
         
-        /* Обёртка аватарки и статус-индикатор */
         .avatar-wrapper { position: relative; display: inline-block; flex-shrink: 0; }
         .avatar { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #1c7fd6 0%, #0a4f96 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; text-transform: uppercase; flex-shrink: 0; transition: transform 0.2s ease; box-shadow: 0 0 12px rgba(0, 140, 255, 0.25); background-size: cover; background-position: center; }
         .online-dot { 
@@ -97,7 +90,6 @@
         .room-time { color: #6e89b5; font-size: 12px; font-weight: 500; }
         .room-preview { color: #6e89b5; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        /* Главная область чата */
         .chat-area { 
             flex-grow: 1; display: flex; flex-direction: column; 
             background: radial-gradient(circle at 50% 0%, #10203a 0%, #05070d 100%); 
@@ -111,14 +103,12 @@
             z-index: 10;
         }
         
-        /* Кнопка назад */
         .back-btn { display: none; font-size: 20px; color: #6e89b5; cursor: pointer; padding: 8px 12px 8px 4px; user-select: none; font-weight: bold; }
         .chat-title { font-weight: 700; font-size: 16.5px; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .messages-container { flex-grow: 1; padding: 20px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; scrollbar-width: none; }
         .messages-container::-webkit-scrollbar { display: none; }
         
-        /* Сообщения */
         .msg-row { display: flex; width: 100%; animation: fadeInMsg 0.22s ease-out forwards; }
         @keyframes fadeInMsg { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         
@@ -137,7 +127,6 @@
         .msg-body { font-size: 15px; line-height: 1.45; word-break: break-word; padding-right: 40px; padding-bottom: 4px; }
         .msg-body img { max-width: 100%; max-height: 280px; border-radius: 10px; margin-top: 6px; display: block; }
         
-        /* Плееры */
         .msg-body audio { width: 100%; max-width: 260px; margin-top: 6px; display: block; }
         .msg-body video { max-width: 100%; max-height: 240px; border-radius: 10px; margin-top: 6px; display: block; background: #000; }
         
@@ -157,7 +146,6 @@
         .admin-active .admin-actions { display: flex; }
         .adm-btn { color: #ff6b6b; cursor: pointer; font-weight: 500; }
 
-        /* Нижняя панель ввода */
         .input-panel { 
             padding: 10px 16px; display: flex; gap: 12px; 
             background: rgba(10, 16, 26, 0.7); align-items: center;
@@ -169,14 +157,13 @@
         .attach-btn { color: #6e89b5; font-size: 24px; cursor: pointer; user-select: none; padding: 4px; transition: color 0.2s; }
         .attach-btn:hover { color: #b0ccff; filter: drop-shadow(0 0 6px rgba(176, 204, 255, 0.5)); }
         #file-input { display: none; }
-        #message-input { flex-grow: 1; padding: 11px 16px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.07); border-radius: 24px; color: #dbe5ff; outline: none; font-family: inherit; font-size: 15px; transition: border 0.2s, box-shadow 0.2s; }
+        #message-input { flex-grow: 1; padding: 11px 16px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.07); border-radius: 24px; color: #dbe5ff; outline: none; font-size: 15px; transition: border 0.2s, box-shadow 0.2s; }
         #message-input::placeholder { color: #435368; }
         #message-input:focus { border-color: rgba(0, 180, 255, 0.4); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
         #send-btn { color: #5ab0ff; font-size: 15px; font-weight: bold; cursor: pointer; user-select: none; padding: 8px; transition: color 0.2s, transform 0.1s; text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 0 0 10px rgba(0, 160, 255, 0.4); }
         #send-btn:hover { color: #8fceff; }
         #send-btn:active { transform: scale(0.95); }
         
-        /* Модалки */
         .modal-overlay { 
             display: none; position: fixed; top:0; left:0; width:100%; height:100%; 
             background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; 
@@ -194,19 +181,19 @@
         .modal-overlay.show .modal-box { transform: scale(1); }
         .modal-box h3 { margin-top: 0; color: #fff; font-size: 19px; font-weight: 600; margin-bottom: 16px; text-shadow: 0 0 8px rgba(163, 191, 255, 0.25); }
         .modal-list { max-height: 260px; overflow-y: auto; margin-bottom: 16px; }
-        .modal-list-item { padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(163, 191, 255, 0.06); color: #dbe5ff; display: flex; align-items: center; gap: 12px; transition: background 0.15s; border-radius: 8px; font-size: 15px; }
+        .modal-list-item { padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(163, 191, 255, 0.06); color: #dbe5ff; display: flex; align-items: center; gap: 12px; transition: background 0.15s; border-radius: 8px; }
         .modal-list-item:hover { background: rgba(0, 150, 255, 0.08); }
-        .modal-input { width: 100%; padding: 12px 14px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.08); color: #dbe5ff; border-radius: 10px; margin-bottom: 20px; outline: none; font-family: inherit; font-size: 15px; transition: border 0.2s, box-shadow 0.2s; }
+        .modal-input { width: 100%; padding: 12px 14px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.08); color: #dbe5ff; border-radius: 10px; margin-bottom: 20px; outline: none; font-size: 15px; transition: border 0.2s, box-shadow 0.2s; }
         .modal-input:focus { border-color: rgba(0, 180, 255, 0.45); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
         .modal-btns { display: flex; justify-content: flex-end; gap: 10px; }
         
-        .btn-cancel { background: transparent; color: #6e89b5; border: none; cursor: pointer; padding: 10px 16px; font-weight: 600; font-size: 14px; font-family: inherit; }
+        .btn-cancel { background: transparent; color: #6e89b5; border: none; cursor: pointer; padding: 10px 16px; font-weight: 600; font-size: 14px; }
         .btn-cancel:hover { color: #b0ccff; }
-        .btn-primary { background: rgba(0, 140, 255, 0.18); border: 1px solid rgba(0, 180, 255, 0.35); color: #dbe5ff; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; font-family: inherit; transition: background 0.2s; box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
+        .btn-primary { background: rgba(0, 140, 255, 0.18); border: 1px solid rgba(0, 180, 255, 0.35); color: #dbe5ff; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
         .btn-primary:hover { background: rgba(0, 140, 255, 0.3); }
-        .btn-danger { background: rgba(229, 57, 53, 0.18); border: 1px solid rgba(255, 100, 100, 0.35); color: #ffb3b0; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; font-family: inherit; transition: background 0.2s; }
+        .btn-danger { background: rgba(229, 57, 53, 0.18); border: 1px solid rgba(255, 100, 100, 0.35); color: #ffb3b0; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; }
         .btn-danger:hover { background: rgba(229, 57, 53, 0.3); }
-        .btn-success { background: rgba(67, 160, 71, 0.18); border: 1px solid rgba(100, 220, 100, 0.35); color: #b6f0b8; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; font-family: inherit; transition: background 0.2s; }
+        .btn-success { background: rgba(67, 160, 71, 0.18); border: 1px solid rgba(100, 220, 100, 0.35); color: #b6f0b8; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; }
         .btn-success:hover { background: rgba(67, 160, 71, 0.3); }
 
         #empty-chat-msg { text-align: center; color: #6e89b5; background: rgba(10, 16, 26, 0.6); backdrop-filter: blur(20px); padding: 14px 24px; border-radius: 20px; margin: auto; font-size: 14.5px; max-width: 85%; line-height: 1.4; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid rgba(163, 191, 255, 0.06); }
@@ -216,7 +203,6 @@
         @keyframes phonePulse { from { transform: scale(1); } to { transform: scale(1.08); } }
         #localAudio, #remoteAudio { display: none; }
 
-        /* ================= MOBILE RESPONSIVE LOGIC ================= */
         @media (max-width: 768px) {
             .sidebar {
                 width: 100%; position: absolute; left: 0; top: 0; height: 100%; z-index: 5;
@@ -240,7 +226,7 @@
             .chat-header { min-height: 64px; }
             .avatar { width: 46px; height: 46px; font-size: 18px; }
             .room-item { padding: 12px 14px; }
-            .menu-item { padding: 18px 24px; }
+            .menu-item { padding: 18px 20px; }
         }
     </style>
 </head>
@@ -255,15 +241,14 @@
                 <div class="menu-status">SAM Личный кабинет</div>
             </div>
             <div class="menu-items">
-                <div class="menu-item" onclick="window.location.href='/apps'">Скачать приложение</div>
-                <div class="menu-item" onclick="openProfileModal()">Профиль и Аватарка</div>
-                <div class="menu-item" onclick="openCreateGroupModal()">Создать группу</div>
-                <div class="menu-item" onclick="openContactsModal()">Контакты</div>
-                <div class="menu-item" onclick="localStorage.clear(); window.location.href='/'">Выйти</div>
+                <div class="menu-item" onclick="window.location.href='/apps'"><span class="menu-icon">📥</span> Скачать приложение</div>
+                <div class="menu-item" onclick="openProfileModal()"><span class="menu-icon">✏️</span> Профиль и Аватарка</div>
+                <div class="menu-item" onclick="openCreateGroupModal()"><span class="menu-icon">👥</span> Создать группу</div>
+                <div class="menu-item" onclick="openContactsModal()"><span class="menu-icon">👤</span> Контакты</div>
+                <div class="menu-item" onclick="localStorage.clear(); window.location.href='/'"><span class="menu-icon">🚪</span> Выйти</div>
             </div>
         </div>
 
-        <!-- МОДАЛКА НАСТРОЙКИ ПРОФИЛЯ -->
         <div id="profile-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Настройки профиля</h3>
@@ -278,7 +263,6 @@
             </div>
         </div>
 
-        <!-- МОДАЛКИ -->
         <div id="group-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Создать группу</h3>
@@ -310,7 +294,6 @@
             </div>
         </div>
 
-        <!-- ВХОДЯЩИЙ ЗВУКОВОЙ ВЫЗОВ -->
         <div id="incoming-call-modal" class="modal-overlay">
             <div class="modal-box" style="text-align: center;">
                 <h3 style="margin-bottom: 5px;">Входящий вызов</h3>
@@ -322,7 +305,6 @@
             </div>
         </div>
 
-        <!-- ОФОРМЛЕНИЕ ТЕКУЩЕГО РАЗГОВОРА -->
         <div id="call-status-modal" class="modal-overlay">
             <div class="modal-box" style="text-align: center;">
                 <h3 id="call-status-text">Установка связи...</h3>
@@ -333,7 +315,6 @@
             </div>
         </div>
 
-        <!-- МОДАЛЬНОЕ ОКНО ГАЛЕРЕИ ЧАТА -->
         <div id="gallery-modal" class="modal-overlay">
             <div class="modal-box" style="max-width: 450px; width: 90%;">
                 <h3>Медиа файлы чата</h3>
@@ -344,7 +325,6 @@
             </div>
         </div>
 
-        <!-- Теги потоков WebRTC -->
         <audio id="localAudio" autoplay muted></audio>
         <audio id="remoteAudio" autoplay></audio>
 
@@ -405,44 +385,31 @@
         let iceCandidateQueue = []; 
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        // === СИСТЕМА УВЕДОМЛЕНИЙ (PUSH & AUDIO) ===
-        if (window.Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
-            Notification.requestPermission();
+        // --- ЛОГИКА СИСТЕМНЫХ УВЕДОМЛЕНИЙ ---
+        function initNotifications() {
+            if ("Notification" in window && Notification.permission === "default") {
+                // Запрашиваем разрешение при самом первом клике пользователя по экрану мессенджера
+                document.addEventListener('click', function requestPermissionOnGesture() {
+                    Notification.requestPermission().then(perm => {
+                        console.log("Статус уведомлений:", perm);
+                    });
+                    document.removeEventListener('click', requestPermissionOnGesture);
+                }, { once: true });
+            }
         }
 
-        function sendPushNotification(title, text) {
-            if (window.Notification && Notification.permission === "granted" && document.hidden) {
+        function showNotification(title, body) {
+            if ("Notification" in window && Notification.permission === "granted") {
                 new Notification(title, {
-                    body: text,
-                    icon: '/uploads/icon.png' 
+                    body: body,
+                    tag: 'sam-messenger-msg' // перезаписывает старые пуши, чтобы не спамить стопкой окон
                 });
             }
         }
 
-        // Генерация приятного уведомления "дзынь" программно
-        function playNotificationSound() {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                
-                osc.type = 'sine';
-                // Две ноты для красивого перелива (Ми и Ля)
-                osc.frequency.setValueAtTime(587.33, ctx.currentTime); 
-                osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.08); 
-                
-                gain.gain.setValueAtTime(0.12, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-                
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                
-                osc.start();
-                osc.stop(ctx.currentTime + 0.35);
-            } catch (e) { console.error("Звук не запустился:", e); }
-        }
+        // Инициализируем привязку клика для пушей
+        initNotifications();
 
-        // Плавное слежение за курсором мыши
         (function() {
             const glow = document.getElementById('cursor-glow-bg');
             let mx = window.innerWidth / 2, my = window.innerHeight / 2, gx = mx, gy = my;
@@ -503,6 +470,12 @@
                     const targetUser = parts[1] === myUsername ? parts[2] : parts[1];
                     addRoomToSidebar(pr, true, targetUser);
                 });
+
+                const lastRoomId = localStorage.getItem('sam_last_room_id');
+                const lastRoomTitle = localStorage.getItem('sam_last_room_title');
+                if (lastRoomId && lastRoomTitle) {
+                    changeRoom(lastRoomId, lastRoomTitle);
+                }
             }
             else if (data.type === 'new_group') {
                 addRoomToSidebar(data.name, false);
@@ -538,14 +511,15 @@
 
                 const previewEl = document.getElementById('p-' + data.room);
                 const timeEl = document.getElementById('t-' + data.room);
+                
+                let contentText = '';
+                if (data.msg_type === 'text') contentText = data.content;
+                else if (data.msg_type === 'image') contentText = '[Фотография]';
+                else if (data.msg_type === 'audio') contentText = '[Аудиозапись]';
+                else if (data.msg_type === 'video') contentText = '[Видеозапись]';
+                else contentText = '[Файл]';
+
                 if (previewEl) {
-                    let contentText = '';
-                    if (data.msg_type === 'text') contentText = data.content;
-                    else if (data.msg_type === 'image') contentText = '[Фотография]';
-                    else if (data.msg_type === 'audio') contentText = '[Аудиозапись]';
-                    else if (data.msg_type === 'video') contentText = '[Видеозапись]';
-                    else contentText = '[Файл]';
-                    
                     previewEl.textContent = `${data.username}: ${contentText}`;
                     if(timeEl) timeEl.textContent = data.time;
                 }
@@ -553,24 +527,11 @@
                 if (data.room === currentRoom) {
                     renderMessage(data, data.history);
                 }
-                
-                let lastSoundTime = 0;
-                const SOUND_COOLDOWN = 500; // Время в миллисекундах   
-                // Логика триггеров пушей и звука при входящем сообщении
-                // Добавляем проверку && !data.history, чтобы не спамить при загрузке истории
-               if (data.username !== myUsername && !data.history) {
-                    let now = Date.now();
-                    
-                    // Звук включится, только если прошло больше 1.5 секунд с прошлого раза
-                    if (now - lastSoundTime > SOUND_COOLDOWN) {
-                        playNotificationSound();
-                        lastSoundTime = now;
-                    }
-                    
-                    // Пуши (их можно оставить или тоже загнать под кулдаун)
-                    let notifyText = data.msg_type === 'text' ? data.content : '[Медиафайл]';
-                    let notifyTitle = isPrivate ? `Сообщение от ${data.username}` : `Группа: ${targetTitle}`;
-                    sendPushNotification(notifyTitle, notifyText);
+
+                // ВЫЗОВ УВЕДОМЛЕНИЯ ПРИ СВЕРНУТОЙ ВКЛАДКЕ
+                if (document.hidden && data.username !== myUsername) {
+                    let chatName = isPrivate ? `ЛС от ${data.username}` : `Группа: ${targetTitle}`;
+                    showNotification(chatName, `${data.username}: ${contentText}`);
                 }
             }
             else if (data.type === 'search_results') {
@@ -604,6 +565,10 @@
                 callTarget = data.from;
                 document.getElementById('caller-name').textContent = data.from;
                 openModal('incoming-call-modal');
+                // Дополнительное пуш-уведомление при звонке
+                if (document.hidden) {
+                    showNotification("Входящий вызов", `Вам звонит ${data.from}`);
+                }
             }
             else if (data.type === 'call_response') {
                 if (data.accepted) {
@@ -857,6 +822,10 @@
                 if(oldEl) oldEl.classList.remove('active');
             }
             currentRoom = roomId;
+
+            localStorage.setItem('sam_last_room_id', roomId);
+            localStorage.setItem('sam_last_room_title', titleText);
+
             const targetRoomEl = document.getElementById('room-' + currentRoom);
             if(targetRoomEl) targetRoomEl.classList.add('active');
             
@@ -864,6 +833,8 @@
             document.getElementById('main-input-panel').style.display = 'flex';
             document.getElementById('chat-title-top').textContent = titleText;
             
+            document.getElementById('messages').innerHTML = '<div style="text-align: center; color: #6e89b5; padding: 20px; font-size: 14.5px;">Загрузка сообщений...</div>';
+
             if (!roomId.startsWith('PRIVATE|')) {
                 document.getElementById('add-member-btn').style.display = 'block';
                 document.getElementById('call-user-btn').style.display = 'none'; 
@@ -925,6 +896,10 @@
             const container = document.getElementById('messages');
             const emptyMsg = document.getElementById('empty-chat-msg');
             if(emptyMsg) emptyMsg.remove();
+
+            if (container.innerHTML.includes('Загрузка сообщений...')) {
+                container.innerHTML = '';
+            }
 
             const isMe = msg.username === myUsername;
             const row = document.createElement('div');
