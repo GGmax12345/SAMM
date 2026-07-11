@@ -6,6 +6,85 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no, viewport-fit=cover">
     <title>SAM Messenger</title>
     <style>
+
+                    /* Базовое состояние - блок скрыт справа и прозрачен */
+            .toast-notification {
+                position: fixed;
+                top: calc(20px + env(safe-area-inset-top));
+                right: 20px;
+                width: 320px;
+                background: rgba(10, 16, 26, 0.88);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(0, 160, 255, 0.25);
+                border-radius: 12px;
+                padding: 14px 16px;
+                color: #dbe5ff;
+                z-index: 9999;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 160, 255, 0.1);
+                
+                /* Эффект плавного появления/исчезновения через CSS-переходы */
+                opacity: 0;
+                transform: translateX(50px) scale(0.95);
+                visibility: hidden;
+                transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+                            transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+                            visibility 0.4s;
+            }
+
+            /* Активное состояние - блок появляется */
+            .toast-notification.show {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+                visibility: visible;
+            }
+
+            .toast-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 6px;
+            }
+
+            .toast-title {
+                font-weight: 700;
+                color: #fff;
+                font-size: 14.5px;
+                text-shadow: 0 0 8px rgba(0, 160, 255, 0.4);
+            }
+
+            .toast-close {
+                font-size: 20px;
+                color: #6e89b5;
+                cursor: pointer;
+                line-height: 1;
+                user-select: none;
+                transition: color 0.2s;
+            }
+
+            .toast-close:hover {
+                color: #ff6b6b;
+            }
+
+            .toast-body {
+                font-size: 14px;
+                line-height: 1.4;
+                color: #a3cfff;
+                word-break: break-word;
+            }
+
+            /* Адаптив под мобилки - уведомление падает сверху по центру */
+            @media (max-width: 480px) {
+                .toast-notification {
+                    width: calc(100% - 32px);
+                    left: 16px;
+                    right: 16px;
+                    transform: translateY(-50px) scale(0.95);
+                }
+                .toast-notification.show {
+                    transform: translateY(0) scale(1);
+                }
+            }
         * { 
             box-sizing: border-box; 
             -webkit-font-smoothing: antialiased;
@@ -407,6 +486,70 @@
             }
         }
 
+                    let toastTimer = null;
+            const toastEl = document.getElementById('custom-toast');
+
+            // Главная функция вызова уведомления
+            function triggerToast(title, body) {
+                document.getElementById('toast-title').textContent = title;
+                document.getElementById('toast-body').textContent = body;
+                
+                // Показываем блок
+                toastEl.classList.add('show');
+                
+                // Запускаем отсчет 10 секунд
+                startToastTimer();
+            }
+
+            // Функция скрытия
+            function hideToast() {
+                toastEl.classList.remove('show');
+                clearToastTimer();
+            }
+
+            // Запуск таймера на 10000 миллисекунд (10 секунд)
+            function startToastTimer() {
+                clearToastTimer(); // на всякий случай очищаем старый таймер
+                toastTimer = setTimeout(() => {
+                    hideToast();
+                }, 10000); 
+            }
+
+            // Очистка таймера
+            function clearToastTimer() {
+                if (toastTimer) {
+                    clearTimeout(toastTimer);
+                    toastTimer = null;
+                }
+            }
+
+            // --- ОТСЛЕЖИВАНИЕ НАВЕДЕНИЯ И КАСАНИЙ ---
+
+            // Если навели мышку — ставим таймер на паузу (очищаем его)
+            toastEl.addEventListener('mouseenter', () => {
+                clearToastTimer();
+            });
+
+            // Убрали мышку — 10 секунд пошли заново
+            toastEl.addEventListener('mouseleave', () => {
+                // Запускаем таймер заново, только если уведомление всё ещё открыто
+                if (toastEl.classList.contains('show')) {
+                    startToastTimer();
+                }
+            });
+
+            // Для мобильных устройств: замораживаем при касании пальцем
+            toastEl.addEventListener('touchstart', () => {
+                clearToastTimer();
+            }, { passive: true });
+
+            // Убрали палец — запускаем таймер заново
+            toastEl.addEventListener('touchend', () => {
+                if (toastEl.classList.contains('show')) {
+                    startToastTimer();
+                }
+            }, { passive: true });
+
         // Инициализируем привязку клика для пушей
         initNotifications();
 
@@ -500,50 +643,46 @@
                     listEl.appendChild(div);
                 });
             }
-            else if (data.type === 'msg') {
-                let isPrivate = data.room.startsWith('PRIVATE|');
-                let targetTitle = data.room;
-                if(isPrivate) {
-                    const parts = data.room.split('|');
-                    targetTitle = parts[1] === myUsername ? parts[2] : parts[1];
-                }
-                addRoomToSidebar(data.room, isPrivate, targetTitle);
-
-                const previewEl = document.getElementById('p-' + data.room);
-                const timeEl = document.getElementById('t-' + data.room);
-                
-                let contentText = '';
-                if (data.msg_type === 'text') contentText = data.content;
-                else if (data.msg_type === 'image') contentText = '[Фотография]';
-                else if (data.msg_type === 'audio') contentText = '[Аудиозапись]';
-                else if (data.msg_type === 'video') contentText = '[Видеозапись]';
-                else contentText = '[Файл]';
-
-                if (previewEl) {
-                    previewEl.textContent = `${data.username}: ${contentText}`;
-                    if(timeEl) timeEl.textContent = data.time;
-                }
-
-                if (data.room === currentRoom) {
-                    renderMessage(data, data.history);
-                }
-
-                // ВЫЗОВ УВЕДОМЛЕНИЯ ПРИ СВЕРНУТОЙ ВКЛАДКЕ
-                if (document.hidden && data.username !== myUsername) {
-                    let chatName = isPrivate ? `ЛС от ${data.username}` : `Группа: ${targetTitle}`;
-                    showNotification(chatName, `${data.username}: ${contentText}`);
-                }
+                    else if (data.type === 'msg') {
+            let isPrivate = data.room.startsWith('PRIVATE|');
+            let targetTitle = data.room;
+            if(isPrivate) {
+                const parts = data.room.split('|');
+                targetTitle = parts[1] === myUsername ? parts[2] : parts[1];
             }
-            else if (data.type === 'search_results') {
-                handleSearchResults(data.results);
+            addRoomToSidebar(data.room, isPrivate, targetTitle);
+
+            const previewEl = document.getElementById('p-' + data.room);
+            const timeEl = document.getElementById('t-' + data.room);
+            
+            let contentText = '';
+            if (data.msg_type === 'text') contentText = data.content;
+            else if (data.msg_type === 'image') contentText = '[Фотография]';
+            else if (data.msg_type === 'audio') contentText = '[Аудиозапись]';
+            else if (data.msg_type === 'video') contentText = '[Видеозапись]';
+            else contentText = '[Файл]';
+
+            if (previewEl) {
+                previewEl.textContent = `${data.username}: ${contentText}`;
+                if(timeEl) timeEl.textContent = data.time;
             }
-            else if (data.type === 'user_status') {
-                const targets = document.querySelectorAll(`[data-peer-username="${CSS.escape(data.username)}"]`);
-                targets.forEach(el => {
-                    if (data.status === 'online') el.classList.add('online');
-                    else el.classList.remove('online');
-                });
+
+            if (data.room === currentRoom) {
+                renderMessage(data, data.history);
             }
+
+            // ВЫЗОВ СИСТЕМНОГО УВЕДОМЛЕНИЯ ПРИ СВЕРНУТОЙ ВКЛАДКЕ БРАУЗЕРА
+            if (document.hidden && data.username !== myUsername) {
+                let chatName = isPrivate ? `ЛС от ${data.username}` : `Группа: ${targetTitle}`;
+                showNotification(chatName, `${data.username}: ${contentText}`);
+            }
+
+            // ВЫЗОВ ВНУТРЕННЕГО ПЛАВНОГО ТОАСТА (если пишет кто-то другой и мы не в этом чате)
+            if (data.username !== myUsername && data.room !== currentRoom) {
+                let chatName = isPrivate ? `ЛС от ${data.username}` : `Группа: ${targetTitle}`;
+                triggerToast(chatName, `${data.username}: ${contentText}`);
+            }
+        }
             else if (data.type === 'clear_chat') {
                 document.getElementById('messages').innerHTML = '';
             }
@@ -1083,5 +1222,12 @@
             openModal('gallery-modal');
         }
     </script>
+    <div id="custom-toast" class="toast-notification">
+    <div class="toast-header">
+        <span id="toast-title" class="toast-title">Новое сообщение</span>
+        <span class="toast-close" onclick="hideToast()">&times;</span>
+    </div>
+    <div id="toast-body" class="toast-body">Привет! Как дела?</div>
+</div>
 </body>
 </html>
