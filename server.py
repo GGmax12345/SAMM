@@ -10,9 +10,6 @@ import aiohttp
 from aiohttp import web
 import asyncpg
 from PIL import Image as PILImage
-import smtplib
-from email.mime.text import MIMEText
-from email.header import Header
 import random
 
 # Настройки Mail.ru для отправки писем
@@ -75,7 +72,6 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
 
 # Асинхронная функция отправки кода на Mail.ru
 async def send_mailru_code(user_email, code):
-    # Вставь СВОЮ ссылку вместо этой, главное оставь /api на конце
     proxy_url = "https://resend-u5gj.vercel.app/api" 
     
     payload = {
@@ -103,7 +99,6 @@ async def init_db(app):
     if 'RENDER' in os.environ and ("localhost" in DATABASE_URL or "127.0.0.1" in DATABASE_URL):
         print("КРИТИЧЕСКАЯ ОШИБКА: Переменная DATABASE_URL не задана в настройках Render Environment!")
     
-    # Решаем проблему Render: asyncpg требует префикс postgresql:// вместо postgres://
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -119,7 +114,6 @@ async def init_db(app):
     app['db_pool'] = pool
     
     async with pool.acquire() as conn:
-        # ИСПРАВЛЕНО: Создаем таблицу верификации с поддержкой ON CONFLICT
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS verification_codes (
                 id SERIAL PRIMARY KEY,
@@ -128,7 +122,6 @@ async def init_db(app):
             )
         ''')
 
-        # Измененная таблица users (удалено поле password, добавлено email)
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -139,7 +132,6 @@ async def init_db(app):
             )
         ''')
         
-        # Храним числовой user_id вместо текстового username
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL PRIMARY KEY,
@@ -293,7 +285,12 @@ async def websocket_handler(request):
                 action = data.get('action')
                 sender_name = active_connections[ws]["username"]
                 
-                # --- ИСПРАВЛЕНО: Обработка запроса одноразового кода ---
+                # ИСПРАВЛЕНО: Защита от неавторизованных WebSocket-запросов мимо авторизации
+                if action not in ['request_code', 'login', 'register'] and not sender_name:
+                    await ws.send_json({"type": "error_msg", "text": "Необходима авторизация!"})
+                    continue
+                
+                # --- Обработка запроса одноразового кода ---
                 if action == 'request_code':
                     email = data.get('email', '').strip()
                     if not email:
@@ -348,9 +345,14 @@ async def websocket_handler(request):
                             
                             await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
                             
-                            await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": "user"})
+                            # ИСПРАВЛЕНО: Заполняем все поля сессии и шлем init_data, чтобы фронт не вис
                             active_connections[ws]["username"] = username
                             active_connections[ws]["user_id"] = user_id
+                            active_connections[ws]["role"] = "user"
+                            
+                            await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": "user"})
+                            await ws.send_json({"type": "init_data", "groups": [], "private_rooms": []})
+                            
                         except asyncpg.UniqueViolationError:
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Этот никнейм или email уже заняты!"})
                     
