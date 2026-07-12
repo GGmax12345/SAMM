@@ -33,6 +33,36 @@ def get_ws_by_username(username):
             return ws
     return None
 
+async def get_or_create_private_room(pool, room_str: str) -> str:
+    """
+    Принимает строку вида 'PRIVATE|User1|User2', находит или создает 
+    для них комнату со случайным UUID и возвращает этот UUID.
+    """
+    parts = room_str.split('|')
+    if len(parts) != 3:
+        return room_str
+    
+    # Сортируем пользователей по алфавиту для консистентности
+    user1, user2 = sorted([parts[1], parts[2]])
+    
+    # Ищем, существует ли уже UUID комната для этой пары пользователей
+    row = await pool.fetchrow('''
+        SELECT r.name FROM rooms r
+        JOIN room_members rm1 ON r.name = rm1.room_name
+        JOIN room_members rm2 ON r.name = rm2.room_name
+        WHERE r.type = 'private' AND rm1.username = $1 AND rm2.username = $2
+    ''', user1, user2)
+    
+    if row:
+        return row['name']
+    
+    # Если комнаты нет, создаем новую с UUID
+    new_uuid = str(uuid.uuid4())
+    await pool.execute("INSERT INTO rooms (name, type) VALUES ($1, 'private')", new_uuid)
+    await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", new_uuid, user1)
+    await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", new_uuid, user2)
+    return new_uuid
+
 # Инициализация базы данных PostgreSQL
 async def init_db(app):
     global DATABASE_URL
@@ -45,12 +75,10 @@ async def init_db(app):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
     # Настройка безопасного SSL-соединения для облака
-    # Настройка безопасного SSL-соединения для облака
     if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
-        # Передаем настроенный ssl_context вместо строки 'require'
         pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_context)
     else:
         pool = await asyncpg.create_pool(DATABASE_URL)
@@ -139,7 +167,7 @@ async def search_handler(request):
 
     try:
         users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
-        rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 LIMIT 10", search_pattern)
+        rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", search_pattern)
         
         results = []
         for r in users_rows:
@@ -237,15 +265,24 @@ async def websocket_handler(request):
                                 active_connections[ws]["role"] = db_role
                                 await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": db_role})
                                 
-                                groups_rows = await pool.fetch("SELECT room_name FROM room_members WHERE username = $1", username)
+                                # Подгрузка групп
+                                groups_rows = await pool.fetch("SELECT room_name FROM room_members WHERE username = $1 AND room_name NOT IN (SELECT name FROM rooms WHERE type='private')", username)
                                 groups = [r['room_name'] for r in groups_rows]
                                     
+                                # Подгрузка приватных комнат через связь таблиц (Вариант 2)
                                 private_rooms = []
-                                private_rows = await pool.fetch("SELECT DISTINCT room FROM messages WHERE room LIKE 'PRIVATE|%'")
-                                for r in private_rows:
-                                    parts = r['room'].split('|')
-                                    if len(parts) == 3 and username in (parts[1], parts[2]):
-                                        private_rooms.append(r['room'])
+                                my_private_rooms = await pool.fetch('''
+                                    SELECT r.name FROM rooms r
+                                    JOIN room_members rm ON r.name = rm.room_name
+                                    WHERE r.type = 'private' AND rm.username = $1
+                                ''', username)
+                                
+                                for r in my_private_rooms:
+                                    room_uuid = r['name']
+                                    members = await pool.fetch("SELECT username FROM room_members WHERE room_name = $1", room_uuid)
+                                    if len(members) == 2:
+                                        m_names = sorted([members[0]['username'], members[1]['username']])
+                                        private_rooms.append(f"PRIVATE|{m_names[0]}|{m_names[1]}")
                                             
                                 await ws.send_json({"type": "init_data", "groups": groups, "private_rooms": private_rooms})
                             else:
@@ -265,7 +302,7 @@ async def websocket_handler(request):
                         search_pattern = f"{query}%"
                         try:
                             users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
-                            rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 LIMIT 10", search_pattern)
+                            rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", search_pattern)
                             
                             results = []
                             for r in users_rows:
@@ -339,13 +376,17 @@ async def websocket_handler(request):
                     if res and res['is_banned'] == 1:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены!"})
                         continue
+
+                    # Маскируем приватную комнату в UUID для записи в БД
+                    db_room = room
+                    if room.startswith("PRIVATE|"):
+                        db_room = await get_or_create_private_room(pool, room)
                     
                     msg_id = await pool.fetchval(
                         "INSERT INTO messages (room, username, content, msg_type, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id", 
-                        room, user_info["username"], content, msg_type, time_str
+                        db_room, user_info["username"], content, msg_type, time_str
                     )
                     
-                    # ОПТИМИЗАЦИЯ: Получаем список разрешенных пользователей ОДИН раз перед циклом рассылки
                     allowed_users = set()
                     is_private = False
                     
@@ -355,35 +396,37 @@ async def websocket_handler(request):
                         if len(parts) == 3:
                             allowed_users = {parts[1], parts[2]}
                     else:
-                        # Получаем всех участников группы
                         members_rows = await pool.fetch("SELECT username FROM room_members WHERE room_name = $1", room)
                         allowed_users = {r['username'] for r in members_rows}
                     
-                    # Рассылка сообщений по защищенной копии списка подключений
                     for client, info in list(active_connections.items()):
                         if info["username"]:
                             if is_private:
                                 if info["username"] not in allowed_users: continue
                             else:
-                                # Если это групповой чат, сообщение доставляется тем, кто в списке участников,
-                                # ИЛИ тем, у кого прямо сейчас открыта эта комната (для работы публичных комнат)
                                 if info["username"] not in allowed_users and info.get("room") != room:
                                     continue
                             
                             try:
+                                # Отправляем клиенту исходное имя комнаты (клиент ожидает строку 'PRIVATE|...')
                                 await client.send_json({
                                     "type": "msg", "id": msg_id, "room": room, 
                                     "username": user_info["username"], "content": content, "msg_type": msg_type, "time": time_str
                                 })
                             except Exception:
-                                pass # Игнорируем ошибки отправки на мертвые сокеты
+                                pass
 
                 elif action == 'join_room':
                     room = data.get('room')
                     active_connections[ws]["room"] = room
                     await ws.send_json({"type": "clear_chat"})
                     
-                    history_rows = await pool.fetch("SELECT id, username, content, msg_type, timestamp FROM messages WHERE room = $1 ORDER BY id ASC LIMIT 100", room)
+                    # Находим реальный ID (UUID или имя группы) для запроса истории из БД
+                    db_room = room
+                    if room.startswith("PRIVATE|"):
+                        db_room = await get_or_create_private_room(pool, room)
+                    
+                    history_rows = await pool.fetch("SELECT id, username, content, msg_type, timestamp FROM messages WHERE room = $1 ORDER BY id ASC LIMIT 100", db_room)
                     for r in history_rows:
                         await ws.send_json({"type": "msg", "id": r['id'], "room": room, "username": r['username'], "content": r['content'], "msg_type": r['msg_type'], "time": r['timestamp'], "history": True})
 
@@ -451,5 +494,4 @@ app.on_startup.append(init_db)
 app.on_cleanup.append(close_db)
 
 if __name__ == '__main__':
-    # Render требует host='0.0.0.0', иначе приложение моментально падает при старте
     web.run_app(app, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
