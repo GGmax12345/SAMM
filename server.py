@@ -75,35 +75,25 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
 
 # Асинхронная функция отправки кода на Mail.ru
 async def send_mailru_code(user_email, code):
-    # Вставь сюда скопированный API ключ с сайта Resend
-    api_key = "re_3w3iU343_3gH2hvQxETgK6niFWUBPxRaf"
-    url = "https://api.resend.com/emails"
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+    # Вставь СВОЮ ссылку вместо этой, главное оставь /api на конце
+    proxy_url = "https://vercel.com/ggmax12345s-projects/resend-u5gj/HWN2rbCoQgss2rj5JH3XjtE6WvLw" 
     
     payload = {
-        # На бесплатном тарифе Resend отправляет с этого системного адреса
-        "from": "SAM Messenger <onboarding@resend.dev>", 
-        "to": [user_email],
-        "subject": "Код подтверждения SAM Messenger",
-        "text": f"Ваш одноразовый код для входа в SAM Messenger: {code}\nКод действует 5 минут."
+        "to": user_email,
+        "code": code
     }
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=payload) as response:
-                if response.status in [200, 201]:
-                    print("Письмо успешно отправлено через Resend API!")
+            async with session.post(proxy_url, json=payload) as response:
+                if response.status == 200:
+                    print("Письмо успешно улетело через связку Render + Vercel + Resend!")
                     return True
                 else:
-                    error_text = await response.text()
-                    print(f"Ошибка Resend API: {error_text}")
+                    print(f"Vercel ответил статусом: {response.status}")
                     return False
     except Exception as e:
-        print(f"Ошибка HTTP запроса к Resend: {e}")
+        print(f"Ошибка подключения к Vercel: {e}")
         return False
 
 # Инициализация базы данных PostgreSQL
