@@ -111,22 +111,19 @@ async def init_db(app):
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
-        # ИСПРАВЛЕНО: Добавлен параметр statement_cache_size=0 для совместимости с PgBouncer
         pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_context, statement_cache_size=0)
     else:
-        # ИСПРАВЛЕНО: Для локальной базы тоже добавляем на всякий случай
         pool = await asyncpg.create_pool(DATABASE_URL, statement_cache_size=0)
         
     app['db_pool'] = pool
     
     async with pool.acquire() as conn:
-        # Новая таблица для временных кодов подтверждения
+        # ИСПРАВЛЕНО: Создаем таблицу верификации с поддержкой ON CONFLICT
         await conn.execute('''
-            CREATE TABLE IF NOT EXISTS email_verification (
+            CREATE TABLE IF NOT EXISTS verification_codes (
                 id SERIAL PRIMARY KEY,
-                email TEXT NOT NULL,
-                code TEXT NOT NULL,
-                expires_at TIMESTAMP NOT NULL
+                email TEXT UNIQUE NOT NULL,
+                code TEXT NOT NULL
             )
         ''')
 
@@ -141,7 +138,7 @@ async def init_db(app):
             )
         ''')
         
-        # ИСПРАВЛЕНО: Теперь храним числовой user_id вместо текстового username
+        # Храним числовой user_id вместо текстового username
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL PRIMARY KEY,
@@ -168,7 +165,7 @@ async def init_db(app):
             )
         ''')
         
-        # Создание админа Grom (теперь вместо пароля указываем его почту)
+        # Создание админа Grom
         row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Grom'")
         if not row:
             await conn.execute(
@@ -284,7 +281,6 @@ async def upload_file(request):
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
-    # Поле user_id для отслеживания сессии в оперативной памяти
     active_connections[ws] = {"username": None, "user_id": None, "role": 'user', "room": None}
     
     pool = request.app['db_pool']
@@ -296,7 +292,30 @@ async def websocket_handler(request):
                 action = data.get('action')
                 sender_name = active_connections[ws]["username"]
                 
-                if action in ['login', 'register']:
+                # --- ИСПРАВЛЕНО: Обработка запроса одноразового кода ---
+                if action == 'request_code':
+                    email = data.get('email', '').strip()
+                    if not email:
+                        await ws.send_json({"type": "auth_error", "text": "Укажите адрес электронной почты!"})
+                        continue
+                    
+                    code = str(random.randint(100000, 999999))
+                    
+                    await pool.execute('''
+                        INSERT INTO verification_codes (email, code) 
+                        VALUES ($1, $2) 
+                        ON CONFLICT (email) DO UPDATE SET code = $2
+                    ''', email, code)
+                    
+                    is_sent = await send_mailru_code(email, code)
+                    
+                    if is_sent:
+                        await ws.send_json({"type": "code_sent", "text": "Код отправлен на почту!"})
+                    else:
+                        await ws.send_json({"type": "auth_error", "text": "Ошибка при отправке письма. Проверьте настройки SMTP."})
+                    continue
+
+                elif action in ['login', 'register']:
                     email = data.get('email', '').strip()
                     code = data.get('code', '').strip()
                     
@@ -304,15 +323,14 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Заполните поля электронной почты и кода!"})
                         continue
                     
-                    # ПРОВЕРКА КОДА: Предполагается таблица verification_codes (email, code)
-                    # Проверяем, существует ли живой код для этого email
+                    # ПРОВЕРКА КОДА в таблице verification_codes
                     is_code_valid = await pool.fetchval(
                         "SELECT EXISTS(SELECT 1 FROM verification_codes WHERE email = $1 AND code = $2)", 
                         email, code
                     )
                     
                     if not is_code_valid:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Неверный или просроченный код подтверждения!"})
+                        await ws.send_json({"type": "auth_result", "success": False, "error": "Неверный код подтверждения!"})
                         continue
                         
                     if action == 'register':
@@ -322,13 +340,11 @@ async def websocket_handler(request):
                             continue
                         
                         try:
-                            # Сохраняем пользователя с привязкой к email
                             user_id = await pool.fetchval(
                                 "INSERT INTO users (username, email) VALUES ($1, $2) RETURNING id", 
                                 username, email
                             )
                             
-                            # Удаляем использованный код, чтобы его нельзя было применить повторно
                             await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
                             
                             await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": "user"})
@@ -338,7 +354,6 @@ async def websocket_handler(request):
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Этот никнейм или email уже заняты!"})
                     
                     elif action == 'login':
-                        # Вытаскиваем данные пользователя по email (включая username для корректной работы мессенджера)
                         row = await pool.fetchrow("SELECT id, username, role, is_banned FROM users WHERE email = $1", email)
                         
                         if row:
@@ -347,20 +362,16 @@ async def websocket_handler(request):
                             if is_banned:
                                 await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                             else:
-                                # Код верный (проверен выше), профиль найден — авторизуем
                                 active_connections[ws]["username"] = db_username
                                 active_connections[ws]["user_id"] = db_id
                                 active_connections[ws]["role"] = db_role
                                 await ws.send_json({"type": "auth_result", "success": True, "username": db_username, "role": db_role})
                                 
-                                # Удаляем использованный код
                                 await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
                                 
-                                # Подгрузка групп (используем актуальный db_username из базы)
                                 groups_rows = await pool.fetch("SELECT room_name FROM room_members WHERE username = $1 AND room_name NOT IN (SELECT name FROM rooms WHERE type='private')", db_username)
                                 groups = [r['room_name'] for r in groups_rows]
                                     
-                                # Подгрузка приватных комнат
                                 private_rooms = []
                                 my_private_rooms = await pool.fetch('''
                                     SELECT r.name FROM rooms r
@@ -377,7 +388,7 @@ async def websocket_handler(request):
                                             
                                 await ws.send_json({"type": "init_data", "groups": groups, "private_rooms": private_rooms})
                         else:
-                            await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь с такой почтой не найден! Зарегистрируйтесь."})
+                            await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден! Зарегистрируйтесь."})
 
                 elif action == 'get_users':
                     users_rows = await pool.fetch("SELECT username FROM users WHERE username != $1", active_connections[ws]["username"])
