@@ -75,13 +75,12 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
 
 # Асинхронная функция отправки кода на Mail.ru
 async def send_mailru_code(user_email, code):
-    # Вставь сюда URL своего воркера Cloudflare
-    proxy_url = "https://sam-mail-proxy.tsyganok-gleb.workers.dev/" 
+    # Твой личный URL прокси-сервера
+    proxy_url = "https://glebushka.pythonanywhere.com/send_code" 
     
     payload = {
         "to": user_email,
-        "subject": "Код подтверждения SAM Messenger",
-        "text": f"Ваш одноразовый код для входа в SAM Messenger: {code}\nКод действует 5 минут."
+        "code": code
     }
 
     try:
@@ -90,10 +89,14 @@ async def send_mailru_code(user_email, code):
                 if response.status == 200:
                     return True
                 else:
-                    print(f"Ошибка прокси Cloudflare: {response.status}")
+                    try:
+                        res_data = await response.json()
+                        print(f"Ошибка прокси: {res_data.get('message')}")
+                    except Exception:
+                        print(f"Прокси вернул ошибку со статусом: {response.status}")
                     return False
     except Exception as e:
-        print(f"Не удалось связаться с прокси: {e}")
+        print(f"Не удалось достучаться до прокси-сервера: {e}")
         return False
 
 # Инициализация базы данных PostgreSQL
