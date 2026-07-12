@@ -75,24 +75,25 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
 
 # Асинхронная функция отправки кода на Mail.ru
 async def send_mailru_code(user_email, code):
-    smtp_server = "smtp.mail.ru"
-    smtp_port = 465
+    # Вставь сюда URL своего воркера Cloudflare
+    proxy_url = "https://sam-mail-proxy.tsyganok-gleb.workers.dev/" 
     
-    msg = MIMEText(f"Ваш одноразовый код для входа в SAM Messenger: {code}\nКод действует 5 минут.", "plain", "utf-8")
-    msg["Subject"] = Header("Код подтверждения SAM Messenger", "utf-8")
-    msg["From"] = MAILRU_USER
-    msg["To"] = user_email
+    payload = {
+        "to": user_email,
+        "subject": "Код подтверждения SAM Messenger",
+        "text": f"Ваш одноразовый код для входа в SAM Messenger: {code}\nКод действует 5 минут."
+    }
 
     try:
-        def _send():
-            with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
-                server.login(MAILRU_USER, MAILRU_PASS)
-                server.sendmail(MAILRU_USER, user_email, msg.as_string())
-        
-        await asyncio.to_thread(_send)
-        return True
+        async with aiohttp.ClientSession() as session:
+            async with session.post(proxy_url, json=payload) as response:
+                if response.status == 200:
+                    return True
+                else:
+                    print(f"Ошибка прокси Cloudflare: {response.status}")
+                    return False
     except Exception as e:
-        print(f"Ошибка SMTP Mail.ru: {e}")
+        print(f"Не удалось связаться с прокси: {e}")
         return False
 
 # Инициализация базы данных PostgreSQL
