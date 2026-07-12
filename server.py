@@ -11,7 +11,7 @@ from aiohttp import web
 import asyncpg
 
 routes = web.RouteTableDef()
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:mYOgVhNRNGMMXe9o@db.btwkssbcdaltjrceufqz.supabase.co:5432/postgres')
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres.btwkssbcdaltjrceufqz:mYOgVhNRNGMMXe9o@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true')
 UPLOAD_DIR = 'uploads'
 
 # Исправление багов asyncio с сетью на Windows при локальном тестировании
