@@ -9,6 +9,7 @@ import ssl
 import aiohttp
 from aiohttp import web
 import asyncpg
+from PIL import Image as PILImage
 
 routes = web.RouteTableDef()
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres.btwkssbcdaltjrceufqz:mYOgVhNRNGMMXe9o@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true')
@@ -193,6 +194,7 @@ async def upload_file(request):
         unique_filename = f"{uuid.uuid4().hex}{ext}"
         filepath = os.path.join(UPLOAD_DIR, unique_filename)
         
+        # 1. Сначала сохраняем файл из сети на диск как обычно
         with open(filepath, 'wb') as f:
             while True:
                 chunk = await field.read_chunk()
@@ -202,8 +204,26 @@ async def upload_file(request):
                 
         mime_type = field.headers.get('Content-Type', '')
         
+        # 2. Проверяем тип файла
         if mime_type.startswith('image/'):
             msg_type = 'image'
+            
+            # Сжимаем только статичные картинки (пропускаем .gif, чтобы не сломать анимацию)
+            if ext != '.gif':
+                try:
+                    # Открываем картинку через Pillow
+                    with PILImage.open(filepath) as img:
+                        # Если картинка в формате RGBA (например, PNG) и мы сохраняем её как JPEG, 
+                        # её нужно перевести в RGB, иначе Pillow выдаст ошибку.
+                        if img.mode in ("RGBA", "P") and ext in ['.jpg', '.jpeg']:
+                            img = img.convert("RGB")
+                        
+                        # Перезаписываем файл с оптимизацией и качеством 75%
+                        # Визуально разницу никто не заметит, но вес упадет в 3–5 раз!
+                        img.save(filepath, optimize=True, quality=75)
+                except Exception as e:
+                    print(f"Ошибка при сжатии изображения: {e}")
+                    
         elif mime_type.startswith('audio/') or ext in ['.mp3', '.wav', '.ogg', '.m4a']:
             msg_type = 'audio'
         elif mime_type.startswith('video/') or ext in ['.mp4', '.webm', '.mov']:
