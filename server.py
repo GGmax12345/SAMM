@@ -45,11 +45,13 @@ async def init_db(app):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
     # Настройка безопасного SSL-соединения для облака
+    # Настройка безопасного SSL-соединения для облака
     if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
-        pool = await asyncpg.create_pool(DATABASE_URL, ssl='require')
+        # Передаем настроенный ssl_context вместо строки 'require'
+        pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_context)
     else:
         pool = await asyncpg.create_pool(DATABASE_URL)
         
@@ -449,4 +451,5 @@ app.on_startup.append(init_db)
 app.on_cleanup.append(close_db)
 
 if __name__ == '__main__':
-    web.run_app(app, port=int(os.environ.get('PORT', 8080)))
+    # Render требует host='0.0.0.0', иначе приложение моментально падает при старте
+    web.run_app(app, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
