@@ -76,7 +76,7 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
 # Асинхронная функция отправки кода на Mail.ru
 async def send_mailru_code(user_email, code):
     # Вставь СВОЮ ссылку вместо этой, главное оставь /api на конце
-    proxy_url = "resend-u5gj.vercel.app/api" 
+    proxy_url = "https://resend-u5gj.vercel.app/api" 
     
     payload = {
         "to": user_email,
