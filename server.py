@@ -96,11 +96,12 @@ async def init_db(app):
                 is_banned INTEGER DEFAULT 0
             )
         ''')
+        # ИСПРАВЛЕНО: Теперь храним числовой user_id вместо текстового username
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL PRIMARY KEY,
                 room TEXT NOT NULL,
-                username TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
                 content TEXT NOT NULL,
                 msg_type TEXT DEFAULT 'text',
                 timestamp TEXT NOT NULL
@@ -194,7 +195,6 @@ async def upload_file(request):
         unique_filename = f"{uuid.uuid4().hex}{ext}"
         filepath = os.path.join(UPLOAD_DIR, unique_filename)
         
-        # 1. Сначала сохраняем файл из сети на диск как обычно
         with open(filepath, 'wb') as f:
             while True:
                 chunk = await field.read_chunk()
@@ -204,22 +204,13 @@ async def upload_file(request):
                 
         mime_type = field.headers.get('Content-Type', '')
         
-        # 2. Проверяем тип файла
         if mime_type.startswith('image/'):
             msg_type = 'image'
-            
-            # Сжимаем только статичные картинки (пропускаем .gif, чтобы не сломать анимацию)
             if ext != '.gif':
                 try:
-                    # Открываем картинку через Pillow
                     with PILImage.open(filepath) as img:
-                        # Если картинка в формате RGBA (например, PNG) и мы сохраняем её как JPEG, 
-                        # её нужно перевести в RGB, иначе Pillow выдаст ошибку.
                         if img.mode in ("RGBA", "P") and ext in ['.jpg', '.jpeg']:
                             img = img.convert("RGB")
-                        
-                        # Перезаписываем файл с оптимизацией и качеством 75%
-                        # Визуально разницу никто не заметит, но вес упадет в 3–5 раз!
                         img.save(filepath, optimize=True, quality=75)
                 except Exception as e:
                     print(f"Ошибка при сжатии изображения: {e}")
@@ -246,7 +237,8 @@ async def upload_file(request):
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
-    active_connections[ws] = {"username": None, "role": 'user', "room": None}
+    # ИСПРАВЛЕНО: Добавили поле user_id для отслеживания сессии в оперативной памяти
+    active_connections[ws] = {"username": None, "user_id": None, "role": 'user', "room": None}
     
     pool = request.app['db_pool']
     
@@ -268,20 +260,24 @@ async def websocket_handler(request):
                         
                     if action == 'register':
                         try:
-                            await pool.execute("INSERT INTO users (username, password) VALUES ($1, $2)", username, hashed_pass)
+                            # ИСПРАВЛЕНО: Получаем сгенерированный ID нового пользователя через RETURNING id
+                            user_id = await pool.fetchval("INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id", username, hashed_pass)
                             await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": "user"})
                             active_connections[ws]["username"] = username
+                            active_connections[ws]["user_id"] = user_id
                         except asyncpg.UniqueViolationError:
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Имя занято!"})
                     
                     elif action == 'login':
-                        row = await pool.fetchrow("SELECT role, is_banned, password FROM users WHERE username = $1", username)
+                        # ИСПРАВЛЕНО: Вытаскиваем id из таблицы users при авторизации
+                        row = await pool.fetchrow("SELECT id, role, is_banned, password FROM users WHERE username = $1", username)
                         if row:
-                            db_role, is_banned, db_password = row['role'], row['is_banned'], row['password']
+                            db_id, db_role, is_banned, db_password = row['id'], row['role'], row['is_banned'], row['password']
                             if is_banned:
                                 await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                             elif db_password == hashed_pass:
                                 active_connections[ws]["username"] = username
+                                active_connections[ws]["user_id"] = db_id
                                 active_connections[ws]["role"] = db_role
                                 await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": db_role})
                                 
@@ -289,7 +285,7 @@ async def websocket_handler(request):
                                 groups_rows = await pool.fetch("SELECT room_name FROM room_members WHERE username = $1 AND room_name NOT IN (SELECT name FROM rooms WHERE type='private')", username)
                                 groups = [r['room_name'] for r in groups_rows]
                                     
-                                # Подгрузка приватных комнат через связь таблиц (Вариант 2)
+                                # Подгрузка приватных комнат
                                 private_rooms = []
                                 my_private_rooms = await pool.fetch('''
                                     SELECT r.name FROM rooms r
@@ -315,7 +311,6 @@ async def websocket_handler(request):
                     users = [r['username'] for r in users_rows]
                     await ws.send_json({"type": "user_list", "users": users})
 
-                # --- ПОИСК ЧЕРЕЗ WEBSOCKET ---
                 elif action == 'search':
                     query = data.get('query', '').strip()
                     if query:
@@ -369,7 +364,7 @@ async def websocket_handler(request):
                         async with pool.acquire() as transaction_conn:
                             async with transaction_conn.transaction():
                                 await transaction_conn.execute("UPDATE users SET username = $1 WHERE username = $2", new_username, old_username)
-                                await transaction_conn.execute("UPDATE messages SET username = $1 WHERE username = $2", new_username, old_username)
+                                # ИСПРАВЛЕНО: Больше НЕ нужно обновлять таблицу сообщений! Она теперь привязана к неизменяемому user_id.
                                 await transaction_conn.execute("UPDATE room_members SET username = $1 WHERE username = $2", new_username, old_username)
                         
                         active_connections[ws]["username"] = new_username
@@ -379,7 +374,7 @@ async def websocket_handler(request):
 
                 elif action == 'send_msg':
                     user_info = active_connections.get(ws)
-                    if not user_info or not user_info["username"]: continue
+                    if not user_info or not user_info["username"] or not user_info["user_id"]: continue
                     
                     room = data.get('room')
                     if not room: continue
@@ -397,14 +392,14 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены!"})
                         continue
 
-                    # Маскируем приватную комнату в UUID для записи в БД
                     db_room = room
                     if room.startswith("PRIVATE|"):
                         db_room = await get_or_create_private_room(pool, room)
                     
+                    # ИСПРАВЛЕНО: Записываем user_id вместо текстового имени пользователя
                     msg_id = await pool.fetchval(
-                        "INSERT INTO messages (room, username, content, msg_type, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id", 
-                        db_room, user_info["username"], content, msg_type, time_str
+                        "INSERT INTO messages (room, user_id, content, msg_type, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id", 
+                        db_room, user_info["user_id"], content, msg_type, time_str
                     )
                     
                     allowed_users = set()
@@ -428,7 +423,6 @@ async def websocket_handler(request):
                                     continue
                             
                             try:
-                                # Отправляем клиенту исходное имя комнаты (клиент ожидает строку 'PRIVATE|...')
                                 await client.send_json({
                                     "type": "msg", "id": msg_id, "room": room, 
                                     "username": user_info["username"], "content": content, "msg_type": msg_type, "time": time_str
@@ -441,12 +435,20 @@ async def websocket_handler(request):
                     active_connections[ws]["room"] = room
                     await ws.send_json({"type": "clear_chat"})
                     
-                    # Находим реальный ID (UUID или имя группы) для запроса истории из БД
                     db_room = room
                     if room.startswith("PRIVATE|"):
                         db_room = await get_or_create_private_room(pool, room)
                     
-                    history_rows = await pool.fetch("SELECT id, username, content, msg_type, timestamp FROM messages WHERE room = $1 ORDER BY id ASC LIMIT 100", db_room)
+                    # ИСПРАВЛЕНО: Тот самый SQL JOIN. Мгновенно склеиваем сообщения с таблицей пользователей, вытаскивая актуальный никнейм
+                    history_rows = await pool.fetch('''
+                        SELECT m.id, u.username, m.content, m.msg_type, m.timestamp 
+                        FROM messages m
+                        JOIN users u ON m.user_id = u.id
+                        WHERE m.room = $1 
+                        ORDER BY m.id ASC 
+                        LIMIT 100
+                    ''', db_room)
+                    
                     for r in history_rows:
                         await ws.send_json({"type": "msg", "id": r['id'], "room": room, "username": r['username'], "content": r['content'], "msg_type": r['msg_type'], "time": r['timestamp'], "history": True})
 
@@ -470,7 +472,6 @@ async def websocket_handler(request):
                                 await client.send_json({"type": "banned"})
                                 await client.close()
 
-                # --- СИГНАЛИНГ ДЛЯ ЗВОНКОВ (WebRTC) ---
                 elif action == 'call_user':
                     target = data.get('target')
                     target_ws = get_ws_by_username(target)
