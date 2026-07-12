@@ -75,14 +75,16 @@ async def init_db(app):
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-    # Настройка безопасного SSL-соединения для облака
+   # Настройка безопасного SSL-соединения для облака
     if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
-        pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_context)
+        # ИСПРАВЛЕНО: Добавлен параметр statement_cache_size=0 для совместимости с PgBouncer
+        pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_context, statement_cache_size=0)
     else:
-        pool = await asyncpg.create_pool(DATABASE_URL)
+        # ИСПРАВЛЕНО: Для локальной базы тоже добавляем на всякий случай
+        pool = await asyncpg.create_pool(DATABASE_URL, statement_cache_size=0)
         
     app['db_pool'] = pool
     
