@@ -10,6 +10,14 @@ import aiohttp
 from aiohttp import web
 import asyncpg
 from PIL import Image as PILImage
+import smtplib
+from email.mime.text import MIMEText
+from email.header import Header
+import random
+
+# Настройки Mail.ru для отправки писем
+MAILRU_USER = os.environ.get('EMAIL_USER', 'sam_official@inbox.ru')
+MAILRU_PASS = os.environ.get('EMAIL_PASSWORD', 'ju6qyvGDtmUiCh0mOaCj') # 16-значный пароль приложения
 
 routes = web.RouteTableDef()
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres.btwkssbcdaltjrceufqz:mYOgVhNRNGMMXe9o@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true')
@@ -64,6 +72,29 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
     await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", new_uuid, user2)
     return new_uuid
 
+
+# Асинхронная функция отправки кода на Mail.ru
+async def send_mailru_code(user_email, code):
+    smtp_server = "smtp.mail.ru"
+    smtp_port = 465
+    
+    msg = MIMEText(f"Ваш одноразовый код для входа в SAM Messenger: {code}\nКод действует 5 минут.", "plain", "utf-8")
+    msg["Subject"] = Header("Код подтверждения SAM Messenger", "utf-8")
+    msg["From"] = MAILRU_USER
+    msg["To"] = user_email
+
+    try:
+        def _send():
+            with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
+                server.login(MAILRU_USER, MAILRU_PASS)
+                server.sendmail(MAILRU_USER, user_email, msg.as_string())
+        
+        await asyncio.to_thread(_send)
+        return True
+    except Exception as e:
+        print(f"Ошибка SMTP Mail.ru: {e}")
+        return False
+
 # Инициализация базы данных PostgreSQL
 async def init_db(app):
     global DATABASE_URL
@@ -75,7 +106,7 @@ async def init_db(app):
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-   # Настройка безопасного SSL-соединения для облака
+    # Настройка безопасного SSL-соединения для облака
     if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False
@@ -89,15 +120,27 @@ async def init_db(app):
     app['db_pool'] = pool
     
     async with pool.acquire() as conn:
+        # Новая таблица для временных кодов подтверждения
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS email_verification (
+                id SERIAL PRIMARY KEY,
+                email TEXT NOT NULL,
+                code TEXT NOT NULL,
+                expires_at TIMESTAMP NOT NULL
+            )
+        ''')
+
+        # Измененная таблица users (удалено поле password, добавлено email)
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
                 role TEXT DEFAULT 'user',
                 is_banned INTEGER DEFAULT 0
             )
         ''')
+        
         # ИСПРАВЛЕНО: Теперь храним числовой user_id вместо текстового username
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS messages (
@@ -109,12 +152,14 @@ async def init_db(app):
                 timestamp TEXT NOT NULL
             )
         ''')
+        
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS rooms (
                 name TEXT PRIMARY KEY,
                 type TEXT DEFAULT 'group'
             )
         ''')
+        
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS room_members (
                 room_name TEXT,
@@ -123,12 +168,12 @@ async def init_db(app):
             )
         ''')
         
+        # Создание админа Grom (теперь вместо пароля указываем его почту)
         row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Grom'")
         if not row:
-            hashed_admin_pass = hash_password('12344321')
             await conn.execute(
-                "INSERT INTO users (username, password, role) VALUES ($1, $2, $3)",
-                'Grom', hashed_admin_pass, 'admin'
+                "INSERT INTO users (username, email, role) VALUES ($1, $2, $3)",
+                'Grom', 'admin@sam.messenger', 'admin'
             )
 
 async def close_db(app):
@@ -239,7 +284,7 @@ async def upload_file(request):
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
-    # ИСПРАВЛЕНО: Добавили поле user_id для отслеживания сессии в оперативной памяти
+    # Поле user_id для отслеживания сессии в оперативной памяти
     active_connections[ws] = {"username": None, "user_id": None, "role": 'user', "room": None}
     
     pool = request.app['db_pool']
@@ -252,39 +297,67 @@ async def websocket_handler(request):
                 sender_name = active_connections[ws]["username"]
                 
                 if action in ['login', 'register']:
-                    username = data.get('username', '').strip()
-                    password = data.get('password', '').strip()
-                    if not username or not password:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Заполните поля!"})
+                    email = data.get('email', '').strip()
+                    code = data.get('code', '').strip()
+                    
+                    if not email or not code:
+                        await ws.send_json({"type": "auth_result", "success": False, "error": "Заполните поля электронной почты и кода!"})
                         continue
                     
-                    hashed_pass = hash_password(password)
+                    # ПРОВЕРКА КОДА: Предполагается таблица verification_codes (email, code)
+                    # Проверяем, существует ли живой код для этого email
+                    is_code_valid = await pool.fetchval(
+                        "SELECT EXISTS(SELECT 1 FROM verification_codes WHERE email = $1 AND code = $2)", 
+                        email, code
+                    )
+                    
+                    if not is_code_valid:
+                        await ws.send_json({"type": "auth_result", "success": False, "error": "Неверный или просроченный код подтверждения!"})
+                        continue
                         
                     if action == 'register':
+                        username = data.get('username', '').strip()
+                        if not username:
+                            await ws.send_json({"type": "auth_result", "success": False, "error": "Укажите имя пользователя для регистрации!"})
+                            continue
+                        
                         try:
-                            # ИСПРАВЛЕНО: Получаем сгенерированный ID нового пользователя через RETURNING id
-                            user_id = await pool.fetchval("INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id", username, hashed_pass)
+                            # Сохраняем пользователя с привязкой к email
+                            user_id = await pool.fetchval(
+                                "INSERT INTO users (username, email) VALUES ($1, $2) RETURNING id", 
+                                username, email
+                            )
+                            
+                            # Удаляем использованный код, чтобы его нельзя было применить повторно
+                            await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
+                            
                             await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": "user"})
                             active_connections[ws]["username"] = username
                             active_connections[ws]["user_id"] = user_id
                         except asyncpg.UniqueViolationError:
-                            await ws.send_json({"type": "auth_result", "success": False, "error": "Имя занято!"})
+                            await ws.send_json({"type": "auth_result", "success": False, "error": "Этот никнейм или email уже заняты!"})
                     
                     elif action == 'login':
-                        # ИСПРАВЛЕНО: Вытаскиваем id из таблицы users при авторизации
-                        row = await pool.fetchrow("SELECT id, role, is_banned, password FROM users WHERE username = $1", username)
+                        # Вытаскиваем данные пользователя по email (включая username для корректной работы мессенджера)
+                        row = await pool.fetchrow("SELECT id, username, role, is_banned FROM users WHERE email = $1", email)
+                        
                         if row:
-                            db_id, db_role, is_banned, db_password = row['id'], row['role'], row['is_banned'], row['password']
+                            db_id, db_username, db_role, is_banned = row['id'], row['username'], row['role'], row['is_banned']
+                            
                             if is_banned:
                                 await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
-                            elif db_password == hashed_pass:
-                                active_connections[ws]["username"] = username
+                            else:
+                                # Код верный (проверен выше), профиль найден — авторизуем
+                                active_connections[ws]["username"] = db_username
                                 active_connections[ws]["user_id"] = db_id
                                 active_connections[ws]["role"] = db_role
-                                await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": db_role})
+                                await ws.send_json({"type": "auth_result", "success": True, "username": db_username, "role": db_role})
                                 
-                                # Подгрузка групп
-                                groups_rows = await pool.fetch("SELECT room_name FROM room_members WHERE username = $1 AND room_name NOT IN (SELECT name FROM rooms WHERE type='private')", username)
+                                # Удаляем использованный код
+                                await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
+                                
+                                # Подгрузка групп (используем актуальный db_username из базы)
+                                groups_rows = await pool.fetch("SELECT room_name FROM room_members WHERE username = $1 AND room_name NOT IN (SELECT name FROM rooms WHERE type='private')", db_username)
                                 groups = [r['room_name'] for r in groups_rows]
                                     
                                 # Подгрузка приватных комнат
@@ -293,7 +366,7 @@ async def websocket_handler(request):
                                     SELECT r.name FROM rooms r
                                     JOIN room_members rm ON r.name = rm.room_name
                                     WHERE r.type = 'private' AND rm.username = $1
-                                ''', username)
+                                ''', db_username)
                                 
                                 for r in my_private_rooms:
                                     room_uuid = r['name']
@@ -303,10 +376,8 @@ async def websocket_handler(request):
                                         private_rooms.append(f"PRIVATE|{m_names[0]}|{m_names[1]}")
                                             
                                 await ws.send_json({"type": "init_data", "groups": groups, "private_rooms": private_rooms})
-                            else:
-                                await ws.send_json({"type": "auth_result", "success": False, "error": "Неверный пароль!"})
                         else:
-                            await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден!"})
+                            await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь с такой почтой не найден! Зарегистрируйтесь."})
 
                 elif action == 'get_users':
                     users_rows = await pool.fetch("SELECT username FROM users WHERE username != $1", active_connections[ws]["username"])
@@ -366,7 +437,6 @@ async def websocket_handler(request):
                         async with pool.acquire() as transaction_conn:
                             async with transaction_conn.transaction():
                                 await transaction_conn.execute("UPDATE users SET username = $1 WHERE username = $2", new_username, old_username)
-                                # ИСПРАВЛЕНО: Больше НЕ нужно обновлять таблицу сообщений! Она теперь привязана к неизменяемому user_id.
                                 await transaction_conn.execute("UPDATE room_members SET username = $1 WHERE username = $2", new_username, old_username)
                         
                         active_connections[ws]["username"] = new_username
@@ -398,7 +468,6 @@ async def websocket_handler(request):
                     if room.startswith("PRIVATE|"):
                         db_room = await get_or_create_private_room(pool, room)
                     
-                    # ИСПРАВЛЕНО: Записываем user_id вместо текстового имени пользователя
                     msg_id = await pool.fetchval(
                         "INSERT INTO messages (room, user_id, content, msg_type, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id", 
                         db_room, user_info["user_id"], content, msg_type, time_str
@@ -441,7 +510,6 @@ async def websocket_handler(request):
                     if room.startswith("PRIVATE|"):
                         db_room = await get_or_create_private_room(pool, room)
                     
-                    # ИСПРАВЛЕНО: Тот самый SQL JOIN. Мгновенно склеиваем сообщения с таблицей пользователей, вытаскивая актуальный никнейм
                     history_rows = await pool.fetch('''
                         SELECT m.id, u.username, m.content, m.msg_type, m.timestamp 
                         FROM messages m

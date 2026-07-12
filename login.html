@@ -142,30 +142,19 @@
 
         /* 5. ПОЛЯ ВВОДА */
         .auth-input { 
-            width: 100%; padding: 16px 45px 16px 16px; 
+            width: 100%; padding: 16px; 
             background: transparent; border: none; 
             color: #dbe5ff; outline: none; 
             position: relative; z-index: 4; font-size: 15px;
         }
         .auth-input::placeholder { color: #435368; text-shadow: none; }
 
-        .toggle-pass-btn {
-            position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
-            background: none; border: none; padding: 0; margin: 0;
-            color: #6e89b5; cursor: pointer; z-index: 10;
-            transition: color 0.3s ease, filter 0.3s ease;
-        }
-        .toggle-pass-btn:hover { 
-            color: #b0ccff; 
-            filter: drop-shadow(0 0 6px rgba(176, 204, 255, 0.6));
-        }
-        .toggle-pass-btn svg { width: 20px; height: 20px; }
-
-        #reg-pass-wrap {
+        /* Контейнер плавного скрытия/появления никнейма при регистрации */
+        #reg-user-wrap {
             max-height: 0; opacity: 0; overflow: hidden; margin: 0;
             transition: max-height 0.4s ease, opacity 0.3s ease;
         }
-        #reg-pass-wrap.expanded { max-height: 100px; opacity: 1; }
+        #reg-user-wrap.expanded { max-height: 100px; opacity: 1; }
 
         .auth-btn {
             padding: 16px; margin-top: 15px;
@@ -196,31 +185,24 @@
             </div>
         </div>
 
-        <div class="glass-element">
-            <div class="glass-glow"></div>
-            <input type="text" id="auth-user" class="auth-input" placeholder="Имя пользователя" autocomplete="off">
-        </div>
-
-        <div class="glass-element">
-            <div class="glass-glow"></div>
-            <input type="password" id="auth-pass" class="auth-input" placeholder="Пароль">
-            <button class="toggle-pass-btn" onclick="togglePasswordVisibility('auth-pass', this)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>
-                </svg>
-            </button>
-        </div>
-
-        <div id="reg-pass-wrap">
+        <!-- Поле никнейма (показывается только при Регистрации) -->
+        <div id="reg-user-wrap">
             <div class="glass-element">
                 <div class="glass-glow"></div>
-                <input type="password" id="auth-pass-repeat" class="auth-input" placeholder="Повторите пароль">
-                <button class="toggle-pass-btn" onclick="togglePasswordVisibility('auth-pass-repeat', this)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                </button>
+                <input type="text" id="auth-user" class="auth-input" placeholder="Имя пользователя" autocomplete="off">
             </div>
+        </div>
+
+        <!-- Поле Почты (всегда видимо) -->
+        <div class="glass-element">
+            <div class="glass-glow"></div>
+            <input type="email" id="auth-email" class="auth-input" placeholder="Электронная почта" autocomplete="off">
+        </div>
+
+        <!-- Поле Одноразового Кода (всегда видимо) -->
+        <div class="glass-element">
+            <div class="glass-glow"></div>
+            <input type="text" id="auth-code" class="auth-input" placeholder="Код подтверждения" autocomplete="off">
         </div>
 
         <button class="auth-btn glass-element" onclick="submitAuth()">
@@ -232,7 +214,7 @@
     </div>
 
     <script>
-        // --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET (как в твоем рабочем файле) ---
+        // --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET ---
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
         let currentAuthAction = 'login';
@@ -241,8 +223,8 @@
             const data = JSON.parse(event.data);
             if (data.type === 'auth_result') {
                 if (data.success) {
+                    // Сохраняем имя, возвращенное бэкендом
                     localStorage.setItem('sam_username', data.username);
-                    localStorage.setItem('sam_password', document.getElementById('auth-pass').value.trim());
                     window.location.href = '/chat';
                 } else {
                     document.getElementById('auth-error').textContent = data.error;
@@ -252,31 +234,39 @@
 
         // --- ОТПРАВКА ДАННЫХ НА BACKEND ---
         function submitAuth() {
-            const u = document.getElementById('auth-user').value.trim();
-            const p = document.getElementById('auth-pass').value.trim();
+            const email = document.getElementById('auth-email').value.trim();
+            const code = document.getElementById('auth-code').value.trim();
             const errorEl = document.getElementById('auth-error');
 
-            if (!u || !p) {
-                errorEl.textContent = 'Заполните все поля!';
+            if (!email || !code) {
+                errorEl.textContent = 'Заполните поля электронной почты и кода!';
                 return;
             }
 
+            const payload = {
+                action: currentAuthAction,
+                email: email,
+                code: code
+            };
+
+            // Если регистрируемся, бэкенду дополнительно нужен username
             if (currentAuthAction === 'register') {
-                const rp = document.getElementById('auth-pass-repeat').value.trim();
-                if (p !== rp) {
-                    errorEl.textContent = 'Пароли не совпадают!';
+                const username = document.getElementById('auth-user').value.trim();
+                if (!username) {
+                    errorEl.textContent = 'Укажите имя пользователя для регистрации!';
                     return;
                 }
+                payload.username = username;
             }
 
             if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ action: currentAuthAction, username: u, password: p }));
+                ws.send(JSON.stringify(payload));
             } else {
                 errorEl.textContent = 'Нет соединения с сервером. Обновите страницу.';
             }
         }
 
-        // --- АНИМАЦИЯ КАПСУЛЫ ПРИ СМЕНЕ ВКЛАДОК ---
+        // --- АНИМАЦИЯ КАПСУЛЫ И СМЕНА ПОЛЕЙ ПРИ ПЕРЕКЛЮЧЕНИИ ВКЛАДОК ---
         function switchAuthTab(type) {
             if (currentAuthAction === type) return;
             currentAuthAction = type;
@@ -291,7 +281,8 @@
             document.getElementById('tab-login').classList.toggle('active', !isReg);
             document.getElementById('tab-reg').classList.toggle('active', isReg);
 
-            const regWrap = document.getElementById('reg-pass-wrap');
+            // Показываем/скрываем поле ввода никнейма
+            const regWrap = document.getElementById('reg-user-wrap');
             if (isReg) regWrap.classList.add('expanded');
             else regWrap.classList.remove('expanded');
 
@@ -303,21 +294,6 @@
                 slider.style.left = isReg ? '50%' : '5px';
                 slider.style.width = 'calc(50% - 5px)';
             }, 150);
-        }
-
-        // --- СКРЫТЬ/ПОКАЗАТЬ ПАРОЛЬ ---
-        function togglePasswordVisibility(inputId, btnElement) {
-            const input = document.getElementById(inputId);
-            const svgOpen = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
-            const svgClosed = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
-            
-            if (input.type === "password") {
-                input.type = "text";
-                btnElement.querySelector('svg').innerHTML = svgClosed;
-            } else {
-                input.type = "password";
-                btnElement.querySelector('svg').innerHTML = svgOpen;
-            }
         }
 
         // --- ЭФФЕКТЫ СВЕЧЕНИЯ И 3D КУРСОР ---
