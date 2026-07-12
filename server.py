@@ -285,11 +285,6 @@ async def websocket_handler(request):
                 action = data.get('action')
                 sender_name = active_connections[ws]["username"]
                 
-                # ИСПРАВЛЕНО: Защита от неавторизованных WebSocket-запросов мимо авторизации
-                if action not in ['request_code', 'login', 'register'] and not sender_name:
-                    await ws.send_json({"type": "error_msg", "text": "Необходима авторизация!"})
-                    continue
-                
                 # --- Обработка запроса одноразового кода ---
                 if action == 'request_code':
                     email = data.get('email', '').strip()
@@ -345,13 +340,11 @@ async def websocket_handler(request):
                             
                             await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
                             
-                            # ИСПРАВЛЕНО: Заполняем все поля сессии и шлем init_data, чтобы фронт не вис
                             active_connections[ws]["username"] = username
                             active_connections[ws]["user_id"] = user_id
                             active_connections[ws]["role"] = "user"
                             
                             await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": "user"})
-                            await ws.send_json({"type": "init_data", "groups": [], "private_rooms": []})
                             
                         except asyncpg.UniqueViolationError:
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Этот никнейм или email уже заняты!"})
@@ -394,6 +387,7 @@ async def websocket_handler(request):
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден! Зарегистрируйтесь."})
 
                 elif action == 'get_users':
+                    if not sender_name: continue
                     users_rows = await pool.fetch("SELECT username FROM users WHERE username != $1", active_connections[ws]["username"])
                     users = [r['username'] for r in users_rows]
                     await ws.send_json({"type": "user_list", "users": users})
@@ -418,6 +412,7 @@ async def websocket_handler(request):
                             await ws.send_json({"type": "error_msg", "text": "Ошибка при поиске"})
 
                 elif action == 'create_group':
+                    if not sender_name: continue
                     group_name = data.get('name', '').strip()
                     if group_name:
                         try:
@@ -428,6 +423,7 @@ async def websocket_handler(request):
                             await ws.send_json({"type": "error_msg", "text": "Группа с таким именем уже существует!"})
 
                 elif action == 'add_to_group':
+                    if not sender_name: continue
                     target_user = data.get('username')
                     room = data.get('room')
                     if target_user and room:
@@ -441,6 +437,7 @@ async def websocket_handler(request):
                             await ws.send_json({"type": "error_msg", "text": "Этот пользователь уже в группе!"})
 
                 elif action == 'change_nickname':
+                    if not sender_name: continue
                     old_username = active_connections[ws]["username"]
                     new_username = data.get('new_nickname', '').strip()
                     
@@ -557,6 +554,7 @@ async def websocket_handler(request):
                                 await client.close()
 
                 elif action == 'call_user':
+                    if not sender_name: continue
                     target = data.get('target')
                     target_ws = get_ws_by_username(target)
                     if target_ws:
@@ -568,6 +566,7 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "error_msg", "text": "Пользователь сейчас оффлайн"})
 
                 elif action == 'call_response':
+                    if not sender_name: continue
                     target = data.get('target')
                     accepted = data.get('accepted')
                     target_ws = get_ws_by_username(target)
@@ -579,6 +578,7 @@ async def websocket_handler(request):
                         })
 
                 elif action == 'webrtc_signal':
+                    if not sender_name: continue
                     target = data.get('target')
                     target_ws = get_ws_by_username(target)
                     if target_ws:
