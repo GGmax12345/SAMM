@@ -17,7 +17,7 @@ import random
 
 # Настройки Mail.ru для отправки писем
 MAILRU_USER = os.environ.get('EMAIL_USER', 'sam_official@inbox.ru')
-MAILRU_PASS = os.environ.get('EMAIL_PASSWORD', 'ju6qyvGDtmUiCh0mOaCj') # 16-значный пароль приложения
+MAILRU_PASS = os.environ.get('EMAIL_PASSWORD', 'tk7l6KKRnqjmW1f9Oxkp') # 16-значный пароль приложения
 
 routes = web.RouteTableDef()
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres.btwkssbcdaltjrceufqz:mYOgVhNRNGMMXe9o@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true')
@@ -75,28 +75,35 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
 
 # Асинхронная функция отправки кода на Mail.ru
 async def send_mailru_code(user_email, code):
-    # Твой личный URL прокси-сервера
-    proxy_url = "https://glebushka.pythonanywhere.com/send_code" 
+    # Вставь сюда скопированный API ключ с сайта Resend
+    api_key = "re_3w3iU343_3gH2hvQxETgK6niFWUBPxRaf"
+    url = "https://api.resend.com/emails"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
     
     payload = {
-        "to": user_email,
-        "code": code
+        # На бесплатном тарифе Resend отправляет с этого системного адреса
+        "from": "SAM Messenger <onboarding@resend.dev>", 
+        "to": [user_email],
+        "subject": "Код подтверждения SAM Messenger",
+        "text": f"Ваш одноразовый код для входа в SAM Messenger: {code}\nКод действует 5 минут."
     }
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(proxy_url, json=payload) as response:
-                if response.status == 200:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status in [200, 201]:
+                    print("Письмо успешно отправлено через Resend API!")
                     return True
                 else:
-                    try:
-                        res_data = await response.json()
-                        print(f"Ошибка прокси: {res_data.get('message')}")
-                    except Exception:
-                        print(f"Прокси вернул ошибку со статусом: {response.status}")
+                    error_text = await response.text()
+                    print(f"Ошибка Resend API: {error_text}")
                     return False
     except Exception as e:
-        print(f"Не удалось достучаться до прокси-сервера: {e}")
+        print(f"Ошибка HTTP запроса к Resend: {e}")
         return False
 
 # Инициализация базы данных PostgreSQL
