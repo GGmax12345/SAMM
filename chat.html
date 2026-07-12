@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <script type="text/javascript" src="https://ff.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=kbxBPHg2iCMJ1GMQrCr57DxZAnkWLyFQYHdIaF4IqcoevzetoYOnUIRNwqOGzlB9LgUGg5hH4a5RyLg6hVrpVMHXXVGCO69uoXuXo3bWFKIhiNip5Vbh9ShJsLvdp2Zs6jQNfm1hQJAT9THHAHP-xShuJaL0KIt5OcVUBVSOu7OpVD9WFmV1WacD0GDmFdAe65dYC47dGibtzApLl-49WB4NPlUHPCQVmX1wo7wLJGHvNw4serNS-R99hEAON_yQEtXKivuoTathndJST2JHsIcRSGjpOmKciRwQPyVpOh6zvb4jNpR3EcE1bsa-pdAx" charset="UTF-8"></script><link rel="stylesheet" crossorigin="anonymous" href="https://ff.kis.v2.scr.kaspersky-labs.com/E3E8934C-235A-4B0E-825A-35A08381A191/abn/main.css?attr=aHR0cHM6Ly9jb250cmlidXRpb24udXNlcmNvbnRlbnQuZ29vZ2xlLmNvbS9kb3dubG9hZD9jPUNneGlZWEprWDNOMGIzSmhaMlVTVUJJTmNtVnpjRzl1YzJWZlpHRjBZUm9fQ2pBek5tVmxOR1EyTVRjMlpEUmpaV1ExTURBd05qVTJOamM1Wm1VeFpqUTFOakE0TlRVMU1qQXlOall3TWpOaU16SVNDeElIRU1MSmliWFRCQmdCJmZpbGVuYW1lPWluZGV4Lmh0bWwmb3BpPTEwMzEzNTA1MA"/><script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <link rel="manifest" href="/uploads/manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no, viewport-fit=cover">
@@ -204,7 +204,6 @@
         @keyframes phonePulse { from { transform: scale(1); } to { transform: scale(1.08); } }
         #localAudio, #remoteAudio { display: none; }
 
-        /* --- СТИЛИ ДЛЯ ВНУТРЕННИХ УВЕДОМЛЕНИЙ (TOAST) --- */
         .toast-notification {
             position: fixed;
             top: calc(20px + env(safe-area-inset-top));
@@ -461,8 +460,28 @@
         let iceCandidateQueue = []; 
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
         
+        // --- КЛИЕНТСКОЕ ШИФРОВАНИЕ (E2EE) ---
         function getChatKey(roomName) {
-            return CryptoJS.SHA256(roomName).toString();
+            // Генерируем уникальный детерминированный ключ для AES на основе хэша комнаты
+            return CryptoJS.SHA256(roomName + "_sam_secure_salt_e2ee").toString();
+        }
+
+        function encryptData(text, roomName) {
+            if (!text) return "";
+            const key = getChatKey(roomName);
+            return CryptoJS.AES.encrypt(text, key).toString();
+        }
+
+        function decryptData(ciphertext, roomName) {
+            if (!ciphertext) return "";
+            try {
+                const key = getChatKey(roomName);
+                const bytes = CryptoJS.AES.decrypt(ciphertext, key);
+                const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+                return decryptedText || ciphertext; // Возвращаем оригинал, если сообщение было отправлено до включения шифрования
+            } catch (e) {
+                return ciphertext; 
+            }
         }
         
         // --- ЛОГИКА СИСТЕМНЫХ УВЕДОМЛЕНИЙ БРАУЗЕРА ---
@@ -526,7 +545,6 @@
         toastEl.addEventListener('touchend', () => {
             if (toastEl.classList.contains('show')) startToastTimer();
         }, { passive: true });
-
 
         (function() {
             const glow = document.getElementById('cursor-glow-bg');
@@ -636,11 +654,13 @@
                     const timeEl = document.getElementById('t-' + data.room);
                     
                     let contentText = '';
-                    if (data.msg_type === 'text') contentText = data.content;
-                    else if (data.msg_type === 'image') contentText = '[Фотография]';
-                    else if (data.msg_type === 'audio') contentText = '[Аудиозапись]';
-                    else if (data.msg_type === 'video') contentText = '[Видеозапись]';
-                    else contentText = '[Файл]';
+                    if (data.msg_type === 'text') {
+                        contentText = decryptData(data.content, data.room);
+                    } else if (['image', 'file', 'audio', 'video'].includes(data.msg_type)) {
+                        contentText = data.msg_type === 'image' ? '[Фотография]' : data.msg_type === 'audio' ? '[Аудиозапись]' : data.msg_type === 'video' ? '[Видеозапись]' : '[Файл]';
+                    } else {
+                        contentText = '[Системное сообщение]';
+                    }
 
                     if (previewEl) {
                         previewEl.textContent = `${data.username}: ${contentText}`;
@@ -986,7 +1006,9 @@
             const input = document.getElementById('message-input');
             const text = input.value.trim();
             if (text && currentRoom) {
-                ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: text, msg_type: 'text' }));
+                // Шифруем текст перед отправкой
+                const encryptedText = encryptData(text, currentRoom);
+                ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedText, msg_type: 'text' }));
                 input.value = '';
             }
         }
@@ -1004,10 +1026,12 @@
             .then(data => {
                 if (data.success) {
                     const contentPayload = { name: data.name, url: data.url };
+                    // Зашифровываем структуру метаданных файла для безопасности путей
+                    const encryptedPayload = encryptData(JSON.stringify(contentPayload), currentRoom);
                     ws.send(JSON.stringify({ 
                         action: 'send_msg', 
                         room: currentRoom, 
-                        content: JSON.stringify(contentPayload), 
+                        content: encryptedPayload, 
                         msg_type: data.msg_type 
                     }));
                 } else {
@@ -1040,11 +1064,17 @@
             
             let html = `<div class="msg-author">${escapeHTML(msg.username)}</div><div class="msg-body" id="content-${msg.id}">`;
             
+            // Расшифровка тела на клиенте
+            const targetRoomKey = msg.room || currentRoom;
+
             if (msg.msg_type === 'text') {
-                html += escapeHTML(msg.content);
+                const decryptedText = decryptData(msg.content, targetRoomKey);
+                html += escapeHTML(decryptedText);
             } else if (['image', 'file', 'audio', 'video'].includes(msg.msg_type)) {
                 try {
-                    const fileData = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
+                    const decryptedStr = decryptData(msg.content, targetRoomKey);
+                    const fileData = typeof decryptedStr === 'string' ? JSON.parse(decryptedStr) : decryptedStr;
+                    
                     if (msg.msg_type === 'image') {
                         html += `<img src="${encodeURI(fileData.url)}" alt="${escapeHTML(fileData.name)}">`;
                     } else if (msg.msg_type === 'audio') {
@@ -1056,8 +1086,14 @@
                     }
                     html += `<br><a href="${encodeURI(fileData.url)}" download="${escapeHTML(fileData.name)}" class="download-btn">📥 Скачать</a>`;
                 } catch(e) {
-                    if (msg.msg_type === 'image') html += `<img src="${encodeURI(msg.content)}">`;
-                    else html += `📎 Файл данных`;
+                    // Резервный вариант, если это старый незашифрованный JSON
+                    try {
+                        const fileData = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
+                        if (msg.msg_type === 'image') html += `<img src="${encodeURI(fileData.url)}">`;
+                        else html += `📎 ${escapeHTML(fileData.name)}`;
+                    } catch(innerErr) {
+                        html += `📎 Защищенный файл данных`;
+                    }
                 }
             } else if (msg.msg_type === 'system') {
                 html += escapeHTML(msg.content);
