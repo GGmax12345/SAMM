@@ -2,59 +2,280 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Скачать SAM Messenger</title>
     <style>
         * { box-sizing: border-box; }
-        body {
-            background-color: #0e1621; color: #efeef1; margin: 0;
+        html, body {
+            height: 100%; margin: 0;
+            background-color: #0e1621; color: #efeef1;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            min-height: 100vh; padding: 20px;
+            overflow-x: hidden;
         }
-        .container { text-align: center; max-width: 600px; width: 100%; }
-        h1 { margin-bottom: 10px; color: #fff; font-size: 28px; }
-        .subtitle { color: #7f91a4; margin-bottom: 40px; font-size: 16px; }
-        .cards-grid { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
-        .card {
-            background-color: #17212b; border: 1px solid #10171e; border-radius: 12px;
-            padding: 30px 20px; width: 260px; display: flex; flex-direction: column;
-            align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            transition: transform 0.2s, border-color 0.2s;
+        body { display: flex; flex-direction: column; position: relative; }
+
+        /* --- ПЕРЕЛИВАЮЩИЙСЯ ФОН --- */
+        .bg-glow {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background:
+                radial-gradient(circle at 15% 20%, rgba(80,170,255,0.38), transparent 55%),
+                radial-gradient(circle at 85% 15%, rgba(10,40,110,0.45), transparent 55%),
+                radial-gradient(circle at 50% 90%, rgba(100,180,255,0.32), transparent 60%),
+                radial-gradient(circle at 90% 80%, rgba(6,25,80,0.42), transparent 55%),
+                radial-gradient(circle at 30% 60%, rgba(40,110,210,0.30), transparent 55%),
+                #0e1621;
+            background-size: 250% 250%;
+            filter: blur(38px);
+            animation: bgShift 14s ease-in-out infinite;
         }
-        .card:hover { transform: translateY(-5px); border-color: #5288c1; }
-        .icon { font-size: 50px; margin-bottom: 15px; }
-        .platform-name { font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 10px; }
-        .description { font-size: 13px; color: #7f91a4; text-align: center; margin-bottom: 25px; height: 40px; }
-        .download-btn {
-            background-color: #2481cc; color: white; text-decoration: none;
-            padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 14px;
-            transition: background 0.2s; width: 100%; text-align: center;
+        @keyframes bgShift {
+            0%   { background-position: 0% 0%; }
+            25%  { background-position: 80% 30%; }
+            50%  { background-position: 100% 70%; }
+            75%  { background-position: 30% 90%; }
+            100% { background-position: 0% 0%; }
         }
-        .download-btn:hover { background-color: #2a94e6; }
-        .back-link { display: inline-block; margin-top: 40px; color: #5288c1; text-decoration: none; font-size: 14px; }
-        .back-link:hover { text-decoration: underline; }
+        /* свет, следующий за курсором */
+        .cursor-light {
+            position: fixed; top: 0; left: 0; z-index: 1; pointer-events: none;
+            width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(82,161,241,0.14), rgba(82,161,241,0.06) 35%, rgba(82,161,241,0.02) 55%, transparent 75%);
+            transition: opacity 0.4s ease;
+            filter: blur(8px);
+            opacity: 0;
+            will-change: transform;
+        }
+
+        .topbar, .chat-area { position: relative; z-index: 2; }
+
+        .topbar {
+            display: flex; align-items: center; gap: 14px;
+            padding: 12px 20px;
+            background-color: rgba(23,33,43,0.85);
+            backdrop-filter: blur(6px);
+            border-bottom: 1px solid #0c1319;
+            flex-shrink: 0;
+        }
+        .back-btn {
+            width: 34px; height: 34px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: #7f91a4; text-decoration: none; flex-shrink: 0;
+            transition: background 0.2s, color 0.2s, transform 0.15s;
+            position: relative; overflow: hidden;
+        }
+        .back-btn:hover { background: #202b36; color: #fff; }
+        .back-btn:active { transform: scale(0.88); }
+        .back-btn svg { width: 20px; height: 20px; }
+        .topbar-title { font-size: 17px; font-weight: 600; color: #fff; }
+        .topbar-sub { font-size: 12px; color: #6ba54a; margin-top: 1px; }
+
+        .chat-area {
+            flex: 1; overflow-y: auto;
+            padding: 24px clamp(14px, 6vw, 60px);
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .bot-msg {
+            display: flex; margin-bottom: 6px;
+            opacity: 0; transform: translateY(14px);
+            animation: msgIn 0.5s ease forwards;
+        }
+        .bot-msg:nth-child(2) { animation-delay: 0.05s; }
+        .bot-msg:nth-child(3) { animation-delay: 0.18s; }
+        .bot-msg:nth-child(4) { animation-delay: 0.31s; }
+        @keyframes msgIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .bubble {
+            background-color: #17212b;
+            border-radius: 4px 14px 14px 14px;
+            padding: 12px 14px 10px 14px;
+            max-width: min(420px, 88vw);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        }
+        .bubble .sender { font-size: 13px; font-weight: 600; color: #5288c1; margin-bottom: 4px; }
+        .bubble .text { font-size: 15px; line-height: 1.4; color: #efeef1; }
+        .bubble .time { font-size: 11px; color: #6b7c8d; text-align: right; margin-top: 4px; }
+
+        .app-bubble {
+            background-color: #17212b;
+            border-radius: 4px 14px 14px 14px;
+            padding: 16px;
+            max-width: min(360px, 88vw);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            display: flex; align-items: center; gap: 14px;
+            border: 1px solid #10171e;
+            transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+        }
+        .app-bubble:hover {
+            border-color: rgba(82,161,241,0.55);
+            transform: translateY(-3px);
+            box-shadow: 0 14px 34px rgba(45,120,200,0.18);
+        }
+        .app-icon { width: 46px; height: 46px; flex-shrink: 0; transition: transform 0.3s ease; }
+        .app-bubble:hover .app-icon { transform: scale(1.08) rotate(-3deg); }
+        .app-info { flex: 1; min-width: 0; }
+        .app-name { font-size: 15px; font-weight: 600; color: #fff; }
+        .app-desc { font-size: 12.5px; color: #7f91a4; margin-top: 2px; line-height: 1.35; }
+
+        .app-dl {
+            margin-top: 10px; display: inline-flex; align-items: center; gap: 6px;
+            background-color: #2481cc; color: #fff; text-decoration: none;
+            font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px;
+            transition: background 0.2s ease, transform 0.12s ease, box-shadow 0.2s ease;
+            position: relative; overflow: hidden; isolation: isolate;
+        }
+        .app-dl:hover { background-color: #2a94e6; box-shadow: 0 4px 14px rgba(42,148,230,0.4); }
+        .app-dl:active { transform: scale(0.94); }
+        .app-dl svg { width: 14px; height: 14px; }
+
+        /* --- RIPPLE ЭФФЕКТ НАЖАТИЯ --- */
+        .ripple {
+            position: absolute; border-radius: 50%;
+            background: rgba(255,255,255,0.5);
+            transform: scale(0);
+            animation: rippleAnim 0.6s ease-out;
+            pointer-events: none; z-index: 0;
+        }
+        @keyframes rippleAnim {
+            to { transform: scale(3.2); opacity: 0; }
+        }
+
+        .app-bubble-col { display: flex; flex-direction: column; }
+
+        .divider {
+            align-self: center; color: #5c6d7e; font-size: 12px;
+            background: #17212b; padding: 4px 12px; border-radius: 10px;
+            margin: 10px 0;
+            opacity: 0; animation: msgIn 0.5s ease forwards;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Установите SAM Messenger</h1>
-        <div class="subtitle">Скачайте официальное приложение для вашего устройства</div>
-        <div class="cards-grid">
-            <div class="card">
-                <div class="icon">🤖</div>
-                <div class="platform-name">Android</div>
-                <div class="description">Мобильная версия для смартфона в формате APK-файла</div>
-               <a href="https://disk.yandex.ru/d/rX3-DhkpjYFp8Q" target="_blank" class="download-btn">Скачать .APK</a>
-            </div>
-            <div class="card">
-                <div class="icon">💻</div>
-                <div class="platform-name">Windows ПК</div>
-                <div class="description">Удобный лаунчер для запуска мессенджера в отдельном окне</div>
-                <a href="https://disk.yandex.ru/d/B84JJ57EBnllDw" download class="download-btn">Скачать .EXE</a>
+    <div class="bg-glow"></div>
+    <div class="cursor-light" id="cursorLight"></div>
+
+    <div class="topbar">
+        <a href="/chat" class="back-btn" data-ripple title="Назад в чат">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </a>
+        <div>
+            <div class="topbar-title">SAM Messenger</div>
+            <div class="topbar-sub">официальные загрузки</div>
+        </div>
+    </div>
+
+    <div class="chat-area">
+        <div class="divider">Выберите версию для вашего устройства</div>
+
+        <div class="bot-msg">
+            <div class="bubble">
+                <div class="sender">SAM</div>
+                <div class="text">Привет! Здесь можно скачать официальные приложения мессенджера 👇</div>
+                <div class="time">11:30</div>
             </div>
         </div>
-        <a href="/chat" class="back-link">⬅ Вернуться в чат</a>
+
+        <div class="bot-msg">
+            <div class="app-bubble">
+                <svg class="app-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="androidGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#8BDB6B"/>
+                            <stop offset="100%" stop-color="#5FBF3A"/>
+                        </linearGradient>
+                    </defs>
+                    <rect x="30" y="38" width="40" height="38" rx="8" fill="url(#androidGrad)"/>
+                    <rect x="22" y="42" width="8" height="24" rx="4" fill="url(#androidGrad)"/>
+                    <rect x="70" y="42" width="8" height="24" rx="4" fill="url(#androidGrad)"/>
+                    <rect x="42" y="76" width="7" height="14" rx="3.5" fill="url(#androidGrad)"/>
+                    <rect x="51" y="76" width="7" height="14" rx="3.5" fill="url(#androidGrad)"/>
+                    <circle cx="41" cy="52" r="4" fill="#0e1621"/>
+                    <circle cx="59" cy="52" r="4" fill="#0e1621"/>
+                    <path d="M37 30 L32 22" stroke="url(#androidGrad)" stroke-width="4" stroke-linecap="round"/>
+                    <path d="M63 30 L68 22" stroke="url(#androidGrad)" stroke-width="4" stroke-linecap="round"/>
+                </svg>
+                <div class="app-bubble-col">
+                    <div class="app-info">
+                        <div class="app-name">Android</div>
+                        <div class="app-desc">Мобильная версия, APK-файл</div>
+                    </div>
+                    <a href="https://disk.yandex.ru/d/rX3-DhkpjYFp8Q" target="_blank" class="app-dl" data-ripple>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 11 12 16 17 11"/><line x1="5" y1="21" x2="19" y2="21"/></svg>
+                        Скачать .APK
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="bot-msg">
+            <div class="app-bubble">
+                <svg class="app-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="winGrad" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#5AC8FA"/>
+                            <stop offset="100%" stop-color="#2481CC"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M12 20 L46 15 L46 48 L12 50 Z" fill="url(#winGrad)"/>
+                    <path d="M50 14.5 L88 9 L88 48 L50 48 Z" fill="url(#winGrad)" opacity="0.9"/>
+                    <path d="M12 54 L46 55.5 L46 88 L12 84 Z" fill="url(#winGrad)" opacity="0.9"/>
+                    <path d="M50 55.7 L88 57 L88 91 L50 85.5 Z" fill="url(#winGrad)"/>
+                </svg>
+                <div class="app-bubble-col">
+                    <div class="app-info">
+                        <div class="app-name">Windows ПК</div>
+                        <div class="app-desc">Лаунчер для запуска в отдельном окне</div>
+                    </div>
+                    <a href="https://disk.yandex.ru/d/B84JJ57EBnllDw" download class="app-dl" data-ripple>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 11 12 16 17 11"/><line x1="5" y1="21" x2="19" y2="21"/></svg>
+                        Скачать .EXE
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <script>
+        // свет за курсором (только для устройств с мышью), оптимизировано через transform
+        const isTouch = window.matchMedia('(hover: none)').matches;
+        const light = document.getElementById('cursorLight');
+
+        if (!isTouch) {
+            let mx = window.innerWidth / 2, my = window.innerHeight / 2;
+            let lx = mx, ly = my;
+
+            document.addEventListener('mousemove', (e) => {
+                mx = e.clientX; my = e.clientY;
+                light.style.opacity = '1';
+            });
+            document.addEventListener('mouseleave', () => { light.style.opacity = '0'; });
+
+            function lightLoop() {
+                lx += (mx - lx) * 0.18;
+                ly += (my - ly) * 0.18;
+                light.style.transform = `translate3d(${lx}px, ${ly}px, 0)`;
+                requestAnimationFrame(lightLoop);
+            }
+            requestAnimationFrame(lightLoop);
+        } else {
+            light.style.display = 'none';
+        }
+
+        // ripple-эффект по клику для всех кнопок с data-ripple
+        document.querySelectorAll('[data-ripple]').forEach(el => {
+            el.addEventListener('click', function (e) {
+                const rect = this.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const ripple = document.createElement('span');
+                ripple.className = 'ripple';
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+                ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+                this.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            });
+        });
+    </script>
 </body>
 </html>
