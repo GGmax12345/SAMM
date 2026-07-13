@@ -12,6 +12,36 @@ import asyncpg
 from PIL import Image as PILImage
 import random
 
+routes = web.RouteTableDef()
+
+@routes.post('/register')
+async def register_handler(request):
+    data = await request.json()
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return web.json_response({'error': 'Заполните все поля'}, status=400)
+
+    pool = request.app['pool']
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow('SELECT id FROM users WHERE username = $1', username)
+        if existing:
+            return web.json_response({'error': 'Никнейм занят'}, status=409)
+
+        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+        token = str(uuid.uuid4())
+
+        await conn.execute(
+            'INSERT INTO users (username, password_hash, token) VALUES ($1, $2, $3)',
+            username, hashed_pw, token
+        )
+
+    return web.json_response({'success': True, 'username': username, 'token': token})
+
+
+
+
 # Настройки Mail.ru для отправки писем
 MAILRU_USER = os.environ.get('EMAIL_USER', 'sam_official@inbox.ru')
 MAILRU_PASS = os.environ.get('EMAIL_PASSWORD', 'tk7l6KKRnqjmW1f9Oxkp') # 16-значный пароль приложения
