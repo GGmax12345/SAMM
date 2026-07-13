@@ -236,37 +236,68 @@
     </div>
 
     <script>
-        // --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET ---
+        // --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET (С АВТО-ПЕРЕПОДКЛЮЧЕНИЕМ) ---
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+        let ws;
         let currentAuthAction = 'login';
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
 
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
+        function connectWS() {
+            ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
             const errorEl = document.getElementById('auth-error');
 
-            if (data.type === 'auth_result') {
-                if (data.success) {
-                    localStorage.setItem('sam_username', data.username);
-                    localStorage.setItem('sam_token', data.token);
-                    window.location.href = '/chat';
-                } else {
-                    errorEl.style.color = '#ff5757';
-                    errorEl.textContent = data.error;
+            ws.onopen = function() {
+                reconnectAttempts = 0;
+                if (errorEl.dataset.reconnecting === '1') {
+                    errorEl.style.color = '#57ff57';
+                    errorEl.textContent = 'Соединение восстановлено!';
+                    errorEl.dataset.reconnecting = '0';
+                    setTimeout(() => { if (errorEl.dataset.reconnecting !== '1') errorEl.textContent = ''; }, 2000);
                 }
-            } 
-            // Обработка успешной генерации и отправки кода
-            else if (data.type === 'code_sent') {
-                errorEl.style.color = '#57ff57'; // Зеленый цвет для информирования
-                errorEl.textContent = data.text;
-                resetCodeButtonCooldown();
-            }
-            // Ошибки бэкенда при генерации
-            else if (data.type === 'auth_error') {
-                errorEl.style.color = '#ff5757';
-                errorEl.textContent = data.text;
-            }
-        };
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'auth_result') {
+                    if (data.success) {
+                        localStorage.setItem('sam_username', data.username);
+                        localStorage.setItem('sam_token', data.token);
+                        window.location.href = '/chat';
+                    } else {
+                        errorEl.style.color = '#ff5757';
+                        errorEl.textContent = data.error;
+                    }
+                } 
+                // Обработка успешной генерации и отправки кода
+                else if (data.type === 'code_sent') {
+                    errorEl.style.color = '#57ff57'; // Зеленый цвет для информирования
+                    errorEl.textContent = data.text;
+                    resetCodeButtonCooldown();
+                }
+                // Ошибки бэкенда при генерации
+                else if (data.type === 'auth_error') {
+                    errorEl.style.color = '#ff5757';
+                    errorEl.textContent = data.text;
+                }
+            };
+
+            ws.onclose = function() {
+                errorEl.dataset.reconnecting = '1';
+                errorEl.style.color = '#ffb020';
+                errorEl.textContent = 'Соединение с сервером потеряно, переподключаюсь...';
+                reconnectAttempts++;
+                const delay = Math.min(1000 * reconnectAttempts, 8000);
+                clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(connectWS, delay);
+            };
+
+            ws.onerror = function() {
+                ws.close();
+            };
+        }
+        connectWS();
 
         // --- ЗАПРОС КОДА НА ПОЧТУ ЧЕРЕЗ WS ---
         function requestCode(event) {
@@ -287,7 +318,7 @@
                 ws.send(JSON.stringify({ action: 'request_code', email: email }));
             } else {
                 errorEl.style.color = '#ff5757';
-                errorEl.textContent = 'Нет соединения с сервером.';
+                errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
             }
         }
 
@@ -343,7 +374,7 @@
                 ws.send(JSON.stringify(payload));
             } else {
                 errorEl.style.color = '#ff5757';
-                errorEl.textContent = 'Нет соединения с сервером. Обновите страницу.';
+                errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
             }
         }
 
