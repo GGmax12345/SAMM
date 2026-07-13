@@ -196,14 +196,19 @@ async def init_db(app):
 
 
 
-alex_row = await conn.fetchrow("SELECT * FROM users WHERE username = 'alexander'")
+# Вшиваем пользователя alexander
+        alex_row = await conn.fetchrow("SELECT * FROM users WHERE username = 'alexander'")
         if not alex_row:
-            # Генерируем фиксированный токен для входа
-            alex_token = "alexander_secret_token_123"
+            # Убедись, что этот токен совпадает с тем, что в JS ниже
+            alex_token = "alexander_secret_token_123" 
             await conn.execute(
                 "INSERT INTO users (username, email, session_token, role) VALUES ($1, $2, $3, $4)",
-                'alexander', 'sasamalis2011sasa@gmail.com', alex_token, 'admin'
+                'alexander', 'sasamalis2011sasa@gmail.com', alex_token, 'user'
             )
+            print("Пользователь alexander добавлен!")
+        else:
+            # Если юзер есть, но токен пустой, обновим его принудительно
+            await conn.execute("UPDATE users SET session_token = $1 WHERE username = 'alexander'", "alexander_secret_token_123")
 
 
         
