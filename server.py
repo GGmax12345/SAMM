@@ -128,13 +128,9 @@ async def init_db(app):
                 username TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 role TEXT DEFAULT 'user',
-                is_banned INTEGER DEFAULT 0,
-                session_token TEXT
+                is_banned INTEGER DEFAULT 0
             )
         ''')
-
-        # Миграция для БД, созданных до появления колонки session_token
-        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS session_token TEXT')
         
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS messages (
@@ -169,40 +165,6 @@ async def init_db(app):
                 "INSERT INTO users (username, email, role) VALUES ($1, $2, $3)",
                 'Grom', 'admin@sam.messenger', 'admin'
             )
-
-async def finish_login(ws, pool, db_id, db_username, db_role, token):
-    """
-    Общая логика после успешной проверки личности (по коду с почты ИЛИ по токену устройства):
-    поднимает сессию на сокете и отправляет клиенту его комнаты/чаты.
-    """
-    active_connections[ws]["username"] = db_username
-    active_connections[ws]["user_id"] = db_id
-    active_connections[ws]["role"] = db_role
-
-    await ws.send_json({"type": "auth_result", "success": True, "username": db_username, "role": db_role, "token": token})
-
-    groups_rows = await pool.fetch(
-        "SELECT room_name FROM room_members WHERE username = $1 AND room_name NOT IN (SELECT name FROM rooms WHERE type='private')",
-        db_username
-    )
-    groups = [r['room_name'] for r in groups_rows]
-
-    private_rooms = []
-    my_private_rooms = await pool.fetch('''
-        SELECT r.name FROM rooms r
-        JOIN room_members rm ON r.name = rm.room_name
-        WHERE r.type = 'private' AND rm.username = $1
-    ''', db_username)
-
-    for r in my_private_rooms:
-        room_uuid = r['name']
-        members = await pool.fetch("SELECT username FROM room_members WHERE room_name = $1", room_uuid)
-        if len(members) == 2:
-            m_names = sorted([members[0]['username'], members[1]['username']])
-            private_rooms.append(f"PRIVATE|{m_names[0]}|{m_names[1]}")
-
-    await ws.send_json({"type": "init_data", "groups": groups, "private_rooms": private_rooms})
-
 
 async def close_db(app):
     if 'db_pool' in app:
@@ -371,15 +333,18 @@ async def websocket_handler(request):
                             continue
                         
                         try:
-                            token = uuid.uuid4().hex
                             user_id = await pool.fetchval(
-                                "INSERT INTO users (username, email, session_token) VALUES ($1, $2, $3) RETURNING id",
-                                username, email, token
+                                "INSERT INTO users (username, email) VALUES ($1, $2) RETURNING id", 
+                                username, email
                             )
                             
                             await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
                             
-                            await finish_login(ws, pool, user_id, username, "user", token)
+                            active_connections[ws]["username"] = username
+                            active_connections[ws]["user_id"] = user_id
+                            active_connections[ws]["role"] = "user"
+                            
+                            await ws.send_json({"type": "auth_result", "success": True, "username": username, "role": "user"})
                             
                         except asyncpg.UniqueViolationError:
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Этот никнейм или email уже заняты!"})
@@ -393,33 +358,33 @@ async def websocket_handler(request):
                             if is_banned:
                                 await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                             else:
-                                # Новый токен устройства выдаётся при каждом входе по почте,
-                                # чтобы дальше это устройство могло входить без повторного запроса кода
-                                token = uuid.uuid4().hex
-                                await pool.execute("UPDATE users SET session_token = $1 WHERE id = $2", token, db_id)
+                                active_connections[ws]["username"] = db_username
+                                active_connections[ws]["user_id"] = db_id
+                                active_connections[ws]["role"] = db_role
+                                await ws.send_json({"type": "auth_result", "success": True, "username": db_username, "role": db_role})
+                                
                                 await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
                                 
-                                await finish_login(ws, pool, db_id, db_username, db_role, token)
+                                groups_rows = await pool.fetch("SELECT room_name FROM room_members WHERE username = $1 AND room_name NOT IN (SELECT name FROM rooms WHERE type='private')", db_username)
+                                groups = [r['room_name'] for r in groups_rows]
+                                    
+                                private_rooms = []
+                                my_private_rooms = await pool.fetch('''
+                                    SELECT r.name FROM rooms r
+                                    JOIN room_members rm ON r.name = rm.room_name
+                                    WHERE r.type = 'private' AND rm.username = $1
+                                ''', db_username)
+                                
+                                for r in my_private_rooms:
+                                    room_uuid = r['name']
+                                    members = await pool.fetch("SELECT username FROM room_members WHERE room_name = $1", room_uuid)
+                                    if len(members) == 2:
+                                        m_names = sorted([members[0]['username'], members[1]['username']])
+                                        private_rooms.append(f"PRIVATE|{m_names[0]}|{m_names[1]}")
+                                            
+                                await ws.send_json({"type": "init_data", "groups": groups, "private_rooms": private_rooms})
                         else:
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден! Зарегистрируйтесь."})
-
-                elif action == 'session_login':
-                    # Тихий повторный вход по сохранённому на устройстве токену — без почты и кода
-                    username = data.get('username', '').strip()
-                    token = data.get('token', '').strip()
-                    
-                    if not username or not token:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Сессия недействительна, войдите заново.", "need_relogin": True})
-                        continue
-                    
-                    row = await pool.fetchrow("SELECT id, username, role, is_banned, session_token FROM users WHERE username = $1", username)
-                    
-                    if not row or row['session_token'] != token:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Сессия недействительна, войдите заново.", "need_relogin": True})
-                    elif row['is_banned']:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
-                    else:
-                        await finish_login(ws, pool, row['id'], row['username'], row['role'], token)
 
                 elif action == 'get_users':
                     if not sender_name: continue
