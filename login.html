@@ -248,6 +248,7 @@
             if (data.type === 'auth_result') {
                 if (data.success) {
                     localStorage.setItem('sam_username', data.username);
+                    localStorage.setItem('sam_token', data.token);
                     window.location.href = '/chat';
                 } else {
                     errorEl.style.color = '#ff5757';
