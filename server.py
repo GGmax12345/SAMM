@@ -14,163 +14,14 @@ import random
 
 routes = web.RouteTableDef()
 
-# Список для хранения всех активных подключений к чату (вебсокетов)
-active_connections = set()
-
-# 1. МАРШРУТ: Отдает главную страницу (интерфейс чата и авторизации)
-@routes.get('/')
-async def index(request):
-    return web.FileResponse('index.html')
-
-
-# 2. МАРШРУТ: РЕГИСТРАЦИЯ (Исправление ошибки 404)
-@routes.post('/register')
-async def register_handler(request):
-    try:
-        data = await request.json()
-        username = data.get('username')
-        password = data.get('password')
-
-        if not username or not password:
-            return web.json_response({'error': 'Заполните все поля'}, status=400)
-
-        pool = request.app['pool']
-        async with pool.acquire() as conn:
-            # Проверяем, занят ли никнейм
-            existing = await conn.fetchrow('SELECT id FROM users WHERE username = $1', username)
-            if existing:
-                return web.json_response({'error': 'Никнейм уже занят'}, status=409)
-
-            # Хешируем пароль и создаем уникальный токен авторизации
-            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-            token = str(uuid.uuid4())
-
-            # Сохраняем нового пользователя в базу
-            await conn.execute(
-                'INSERT INTO users (username, password_hash, token) VALUES ($1, $2, $3)',
-                username, hashed_pw, token
-            )
-
-        return web.json_response({'success': True, 'username': username, 'token': token})
-    except Exception as e:
-        print(f"Ошибка регистрации: {e}")
-        return web.json_response({'error': 'Внутренняя ошибка сервера'}, status=500)
-
-
-# 3. МАРШРУТ: ВХОД (ЛОГИН)
-@routes.post('/login')
-async def login_handler(request):
-    try:
-        data = await request.json()
-        username = data.get('username')
-        password = data.get('password')
-
-        pool = request.app['pool']
-        async with pool.acquire() as conn:
-            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-            user = await conn.fetchrow(
-                'SELECT token FROM users WHERE username = $1 AND password_hash = $2', 
-                username, hashed_pw
-            )
-            if not user:
-                return web.json_response({'error': 'Неверный логин или пароль'}, status=401)
-            
-            return web.json_response({'success': True, 'username': username, 'token': user['token']})
-    except Exception as e:
-        return web.json_response({'error': 'Внутренняя ошибка сервера'}, status=500)
-
-
-# 4. МАРШРУТ: РАБОТА ЧАТА (WebSockets)
-@routes.get('/ws')
-async def websocket_handler(request):
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-
-    # Проверяем токен пользователя при подключении
-    token = request.query.get('token')
-    pool = request.app['pool']
-    
-    async with pool.acquire() as conn:
-        user = await conn.fetchrow('SELECT username FROM users WHERE token = $1', token)
-        if not user:
-            await ws.close(code=4001, message=b'Invalid Token')
-            return ws
-        username = user['username']
-
-    active_connections.add(ws)
-    print(f"Пользователь {username} зашел в чат")
-
-    try:
-        async for msg in ws:
-            if msg.type == web.WSMsgType.TEXT:
-                data = json.loads(msg.data)
-                text = data.get('text', '')
-                
-                # Рассылаем сообщение всем, кто онлайн
-                broadcast_data = json.dumps({'username': username, 'text': text})
-                for conn in active_connections:
-                    if not conn.closed:
-                        await conn.send_str(broadcast_data)
-    finally:
-        active_connections.remove(ws)
-        print(f"Пользователь {username} покинул чат")
-    
-    return ws
-
-
-# НАСТРОЙКА И ЗАПУСК БАЗЫ ДАННЫХ И ПРИЛОЖЕНИЯ
-async def init_db(app):
-    # !!! ОБЯЗАТЕЛЬНО УКАЖИ СВОИ ДАННЫЕ ПОДКЛЮЧЕНИЯ К POSTGRESQL НИЖЕ !!!
-    app['pool'] = await asyncpg.create_pool(
-        user='postgres',
-        password='твой_пароль_от_бд',
-        database='имя_твоей_базы_данных',
-        host='127.0.0.1',
-        port=5432
-    )
-    
-    # Автоматически создаем таблицу пользователей, если её еще нет
-    async with app['pool'].acquire() as conn:
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username VARCHAR(50) UNIQUE NOT NULL,
-                password_hash VARCHAR(64) NOT NULL,
-                token VARCHAR(36) NOT NULL
-            );
-        ''')
-
-async def close_db(app):
-    await app['pool'].close()
-
-app = web.Application()
-app.add_routes(routes)
-app.on_startup.append(init_db)
-app.on_cleanup.append(close_db)
-
-if __name__ == '__main__':
-    print("Сервер запущен на http://127.0.0.1:8080")
-    web.run_app(app, host='127.0.0.1', port=8080)
-
-
-
-
-
-
-
-
-
-
-
 # Настройки Mail.ru для отправки писем
 MAILRU_USER = os.environ.get('EMAIL_USER', 'sam_official@inbox.ru')
-MAILRU_PASS = os.environ.get('EMAIL_PASSWORD', 'tk7l6KKRnqjmW1f9Oxkp') # 16-значный пароль приложения
+MAILRU_PASS = os.environ.get('EMAIL_PASSWORD', 'tk7l6KKRnqjmW1f9Oxkp') 
 
-routes = web.RouteTableDef()
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres.btwkssbcdaltjrceufqz:mYOgVhNRNGMMXe9o@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true')
 UPLOAD_DIR = 'uploads'
 
-# Исправление багов asyncio с сетью на Windows при локальном тестировании
+# Исправление багов asyncio с сетью на Windows
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
@@ -190,18 +41,12 @@ def get_ws_by_username(username):
     return None
 
 async def get_or_create_private_room(pool, room_str: str) -> str:
-    """
-    Принимает строку вида 'PRIVATE|User1|User2', находит или создает 
-    для них комнату со случайным UUID и возвращает этот UUID.
-    """
     parts = room_str.split('|')
     if len(parts) != 3:
         return room_str
     
-    # Сортируем пользователей по алфавиту для консистентности
     user1, user2 = sorted([parts[1], parts[2]])
     
-    # Ищем, существует ли уже UUID комната для этой пары пользователей
     row = await pool.fetchrow('''
         SELECT r.name FROM rooms r
         JOIN room_members rm1 ON r.name = rm1.room_name
@@ -212,47 +57,32 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
     if row:
         return row['name']
     
-    # Если комнаты нет, создаем новую с UUID
     new_uuid = str(uuid.uuid4())
     await pool.execute("INSERT INTO rooms (name, type) VALUES ($1, 'private')", new_uuid)
     await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", new_uuid, user1)
     await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", new_uuid, user2)
     return new_uuid
 
-
-# Асинхронная функция отправки кода на Mail.ru
 async def send_mailru_code(user_email, code):
     proxy_url = "https://resend-u5gj.vercel.app/api" 
-    
-    payload = {
-        "to": user_email,
-        "code": code
-    }
-
+    payload = {"to": user_email, "code": code}
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(proxy_url, json=payload) as response:
                 if response.status == 200:
-                    print("Письмо успешно улетело через связку Render + Vercel + Resend!")
                     return True
-                else:
-                    print(f"Vercel ответил статусом: {response.status}")
-                    return False
+                return False
     except Exception as e:
         print(f"Ошибка подключения к Vercel: {e}")
         return False
 
-# Инициализация базы данных PostgreSQL
+# --- НАСТРОЙКА БАЗЫ ДАННЫХ ---
 async def init_db(app):
     global DATABASE_URL
-    
-    if 'RENDER' in os.environ and ("localhost" in DATABASE_URL or "127.0.0.1" in DATABASE_URL):
-        print("КРИТИЧЕСКАЯ ОШИБКА: Переменная DATABASE_URL не задана в настройках Render Environment!")
     
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-    # Настройка безопасного SSL-соединения для облака
     if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False
@@ -272,19 +102,23 @@ async def init_db(app):
             )
         ''')
 
+        # Обрати внимание: email теперь не обязателен (чтобы работала рега по логину/паролю)
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
-                email TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE,
+                password_hash TEXT,
                 role TEXT DEFAULT 'user',
                 is_banned INTEGER DEFAULT 0,
                 session_token TEXT
             )
         ''')
 
-        # Миграция для БД, созданных до появления колонки session_token
+        # Миграция: обновляем старую БД (добавляем поля, если их не было)
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS session_token TEXT')
+        await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT')
+        await conn.execute('ALTER TABLE users ALTER COLUMN email DROP NOT NULL')
         
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS messages (
@@ -312,7 +146,6 @@ async def init_db(app):
             )
         ''')
         
-        # Создание админа Grom
         row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Grom'")
         if not row:
             await conn.execute(
@@ -320,11 +153,11 @@ async def init_db(app):
                 'Grom', 'admin@sam.messenger', 'admin'
             )
 
+async def close_db(app):
+    if 'db_pool' in app:
+        await app['db_pool'].close()
+
 async def finish_login(ws, pool, db_id, db_username, db_role, token):
-    """
-    Общая логика после успешной проверки личности (по коду с почты ИЛИ по токену устройства):
-    поднимает сессию на сокете и отправляет клиенту его комнаты/чаты.
-    """
     active_connections[ws]["username"] = db_username
     active_connections[ws]["user_id"] = db_id
     active_connections[ws]["role"] = db_role
@@ -354,10 +187,6 @@ async def finish_login(ws, pool, db_id, db_username, db_role, token):
     await ws.send_json({"type": "init_data", "groups": groups, "private_rooms": private_rooms})
 
 
-async def close_db(app):
-    if 'db_pool' in app:
-        await app['db_pool'].close()
-
 def load_html(filename):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     filepath = os.path.join(base_dir, filename)
@@ -382,32 +211,79 @@ async def profile_page(request):
 async def apps_page(request):
     return web.Response(text=load_html('apps.html'), content_type='text/html')
 
-# --- ПОИСК ЧЕРЕЗ HTTP API (FETCH) ---
+
+# --- НОВЫЕ МАРШРУТЫ РЕГИСТРАЦИИ И ЛОГИНА ПО HTTP (ДОБАВЛЕНО) ---
+
+@routes.post('/register')
+async def register_handler(request):
+    try:
+        data = await request.json()
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return web.json_response({'error': 'Заполните все поля'}, status=400)
+
+        pool = request.app['db_pool']
+        async with pool.acquire() as conn:
+            existing = await conn.fetchrow('SELECT id FROM users WHERE username = $1', username)
+            if existing:
+                return web.json_response({'error': 'Никнейм уже занят'}, status=409)
+
+            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+            token = str(uuid.uuid4())
+
+            await conn.execute(
+                'INSERT INTO users (username, password_hash, session_token) VALUES ($1, $2, $3)',
+                username, hashed_pw, token
+            )
+
+        return web.json_response({'success': True, 'username': username, 'token': token})
+    except Exception as e:
+        print(f"Ошибка регистрации HTTP: {e}")
+        return web.json_response({'error': 'Внутренняя ошибка сервера'}, status=500)
+
+@routes.post('/login')
+async def login_handler(request):
+    try:
+        data = await request.json()
+        username = data.get('username')
+        password = data.get('password')
+
+        pool = request.app['db_pool']
+        async with pool.acquire() as conn:
+            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+            user = await conn.fetchrow(
+                'SELECT session_token FROM users WHERE username = $1 AND password_hash = $2', 
+                username, hashed_pw
+            )
+            if not user:
+                return web.json_response({'error': 'Неверный логин или пароль'}, status=401)
+            
+            return web.json_response({'success': True, 'username': username, 'token': user['session_token']})
+    except Exception as e:
+        print(f"Ошибка логина HTTP: {e}")
+        return web.json_response({'error': 'Внутренняя ошибка сервера'}, status=500)
+
+
+# --- ПОИСК И ЗАГРУЗКА ---
+
 @routes.get('/api/search')
 async def search_handler(request):
     query = request.query.get('q', '').strip()
     if not query:
         return web.json_response([])
-
     pool = request.app['db_pool']
     search_pattern = f"{query}%"
-
     try:
         users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
         rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", search_pattern)
         
-        results = []
-        for r in users_rows:
-            results.append({"name": r['name'], "type": r['type']})
-        for r in rooms_rows:
-            results.append({"name": r['name'], "type": r['type']})
-            
+        results = [{"name": r['name'], "type": r['type']} for r in users_rows]
+        results.extend([{"name": r['name'], "type": r['type']} for r in rooms_rows])
         return web.json_response(results)
-    except Exception as e:
-        print(f"Ошибка HTTP поиска: {e}")
+    except Exception:
         return web.json_response({"error": "Ошибка сервера при поиске"}, status=500)
-
-# --- ЗАГРУЗКА МЕДИАФАЙЛОВ ---
 
 @routes.post('/upload')
 async def upload_file(request):
@@ -428,7 +304,6 @@ async def upload_file(request):
                 f.write(chunk)
                 
         mime_type = field.headers.get('Content-Type', '')
-        
         if mime_type.startswith('image/'):
             msg_type = 'image'
             if ext != '.gif':
@@ -437,9 +312,8 @@ async def upload_file(request):
                         if img.mode in ("RGBA", "P") and ext in ['.jpg', '.jpeg']:
                             img = img.convert("RGB")
                         img.save(filepath, optimize=True, quality=75)
-                except Exception as e:
-                    print(f"Ошибка при сжатии изображения: {e}")
-                    
+                except Exception:
+                    pass
         elif mime_type.startswith('audio/') or ext in ['.mp3', '.wav', '.ogg', '.m4a']:
             msg_type = 'audio'
         elif mime_type.startswith('video/') or ext in ['.mp4', '.webm', '.mov']:
@@ -453,10 +327,9 @@ async def upload_file(request):
             "name": filename,
             "msg_type": msg_type
         })
-        
     return web.json_response({"success": False, "error": "Файл не найден"})
 
-# --- ОБРАБОТКА WEBSOCKET ---
+# --- ОБРАБОТКА WEBSOCKET (Твой оригинальный мощный чат) ---
 
 @routes.get('/ws')
 async def websocket_handler(request):
@@ -473,7 +346,6 @@ async def websocket_handler(request):
                 action = data.get('action')
                 sender_name = active_connections[ws]["username"]
                 
-                # --- Обработка запроса одноразового кода ---
                 if action == 'request_code':
                     email = data.get('email', '').strip()
                     if not email:
@@ -501,71 +373,56 @@ async def websocket_handler(request):
                     code = data.get('code', '').strip()
                     
                     if not email or not code:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Заполните поля электронной почты и кода!"})
+                        await ws.send_json({"type": "auth_result", "success": False, "error": "Заполните поля!"})
                         continue
                     
-                    # ПРОВЕРКА КОДА в таблице verification_codes
                     is_code_valid = await pool.fetchval(
                         "SELECT EXISTS(SELECT 1 FROM verification_codes WHERE email = $1 AND code = $2)", 
                         email, code
                     )
                     
                     if not is_code_valid:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Неверный код подтверждения!"})
+                        await ws.send_json({"type": "auth_result", "success": False, "error": "Неверный код!"})
                         continue
                         
                     if action == 'register':
                         username = data.get('username', '').strip()
                         if not username:
-                            await ws.send_json({"type": "auth_result", "success": False, "error": "Укажите имя пользователя для регистрации!"})
+                            await ws.send_json({"type": "auth_result", "success": False, "error": "Укажите имя!"})
                             continue
-                        
                         try:
                             token = uuid.uuid4().hex
                             user_id = await pool.fetchval(
                                 "INSERT INTO users (username, email, session_token) VALUES ($1, $2, $3) RETURNING id",
                                 username, email, token
                             )
-                            
                             await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
-                            
                             await finish_login(ws, pool, user_id, username, "user", token)
-                            
                         except asyncpg.UniqueViolationError:
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Этот никнейм или email уже заняты!"})
                     
                     elif action == 'login':
                         row = await pool.fetchrow("SELECT id, username, role, is_banned FROM users WHERE email = $1", email)
-                        
                         if row:
-                            db_id, db_username, db_role, is_banned = row['id'], row['username'], row['role'], row['is_banned']
-                            
-                            if is_banned:
+                            if row['is_banned']:
                                 await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                             else:
-                                # Новый токен устройства выдаётся при каждом входе по почте,
-                                # чтобы дальше это устройство могло входить без повторного запроса кода
                                 token = uuid.uuid4().hex
-                                await pool.execute("UPDATE users SET session_token = $1 WHERE id = $2", token, db_id)
+                                await pool.execute("UPDATE users SET session_token = $1 WHERE id = $2", token, row['id'])
                                 await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
-                                
-                                await finish_login(ws, pool, db_id, db_username, db_role, token)
+                                await finish_login(ws, pool, row['id'], row['username'], row['role'], token)
                         else:
-                            await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден! Зарегистрируйтесь."})
+                            await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден!"})
 
                 elif action == 'session_login':
-                    # Тихий повторный вход по сохранённому на устройстве токену — без почты и кода
                     username = data.get('username', '').strip()
                     token = data.get('token', '').strip()
-                    
                     if not username or not token:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Сессия недействительна, войдите заново.", "need_relogin": True})
+                        await ws.send_json({"type": "auth_result", "success": False, "need_relogin": True})
                         continue
-                    
                     row = await pool.fetchrow("SELECT id, username, role, is_banned, session_token FROM users WHERE username = $1", username)
-                    
                     if not row or row['session_token'] != token:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Сессия недействительна, войдите заново.", "need_relogin": True})
+                        await ws.send_json({"type": "auth_result", "success": False, "need_relogin": True})
                     elif row['is_banned']:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                     else:
@@ -573,28 +430,18 @@ async def websocket_handler(request):
 
                 elif action == 'get_users':
                     if not sender_name: continue
-                    users_rows = await pool.fetch("SELECT username FROM users WHERE username != $1", active_connections[ws]["username"])
-                    users = [r['username'] for r in users_rows]
-                    await ws.send_json({"type": "user_list", "users": users})
+                    users_rows = await pool.fetch("SELECT username FROM users WHERE username != $1", sender_name)
+                    await ws.send_json({"type": "user_list", "users": [r['username'] for r in users_rows]})
 
                 elif action == 'search':
                     query = data.get('query', '').strip()
                     if query:
                         search_pattern = f"{query}%"
-                        try:
-                            users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
-                            rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", search_pattern)
-                            
-                            results = []
-                            for r in users_rows:
-                                results.append({"name": r['name'], "type": r['type']})
-                            for r in rooms_rows:
-                                results.append({"name": r['name'], "type": r['type']})
-                                
-                            await ws.send_json({"type": "search_results", "results": results})
-                        except Exception as e:
-                            print(f"Ошибка WebSocket поиска: {e}")
-                            await ws.send_json({"type": "error_msg", "text": "Ошибка при поиске"})
+                        users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
+                        rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", search_pattern)
+                        results = [{"name": r['name'], "type": r['type']} for r in users_rows]
+                        results.extend([{"name": r['name'], "type": r['type']} for r in rooms_rows])
+                        await ws.send_json({"type": "search_results", "results": results})
 
                 elif action == 'create_group':
                     if not sender_name: continue
@@ -602,67 +449,36 @@ async def websocket_handler(request):
                     if group_name:
                         try:
                             await pool.execute("INSERT INTO rooms (name, type) VALUES ($1, 'group')", group_name)
-                            await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", group_name, active_connections[ws]["username"])
+                            await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", group_name, sender_name)
                             await ws.send_json({"type": "new_group", "name": group_name})
-                        except asyncpg.UniqueViolationError:
-                            await ws.send_json({"type": "error_msg", "text": "Группа с таким именем уже существует!"})
+                        except:
+                            await ws.send_json({"type": "error_msg", "text": "Группа с таким именем существует!"})
 
                 elif action == 'add_to_group':
                     if not sender_name: continue
-                    target_user = data.get('username')
-                    room = data.get('room')
+                    target_user, room = data.get('username'), data.get('room')
                     if target_user and room:
                         try:
                             await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", room, target_user)
                             for client, info in list(active_connections.items()):
                                 if info["username"] == target_user:
                                     await client.send_json({"type": "new_group", "name": room})
-                            await ws.send_json({"type": "success_msg", "text": f"Пользователь {target_user} добавлен в группу!"})
-                        except asyncpg.UniqueViolationError:
-                            await ws.send_json({"type": "error_msg", "text": "Этот пользователь уже в группе!"})
-
-                elif action == 'change_nickname':
-                    if not sender_name: continue
-                    old_username = active_connections[ws]["username"]
-                    new_username = data.get('new_nickname', '').strip()
-                    
-                    if not old_username: continue
-                    if not new_username or new_username == old_username: continue
-                    
-                    try:
-                        async with pool.acquire() as transaction_conn:
-                            async with transaction_conn.transaction():
-                                await transaction_conn.execute("UPDATE users SET username = $1 WHERE username = $2", new_username, old_username)
-                                await transaction_conn.execute("UPDATE room_members SET username = $1 WHERE username = $2", new_username, old_username)
-                        
-                        active_connections[ws]["username"] = new_username
-                        await ws.send_json({"type": "nickname_changed", "new_name": new_username})
-                    except asyncpg.UniqueViolationError:
-                        await ws.send_json({"type": "error_msg", "text": "Этот ник уже занят!"})
+                            await ws.send_json({"type": "success_msg", "text": "Добавлен в группу!"})
+                        except:
+                            pass
 
                 elif action == 'send_msg':
                     user_info = active_connections.get(ws)
-                    if not user_info or not user_info["username"] or not user_info["user_id"]: continue
+                    if not user_info or not user_info["username"]: continue
                     
-                    room = data.get('room')
+                    room, content, msg_type = data.get('room'), data.get('content', ''), data.get('msg_type', 'text')
                     if not room: continue
-                    content = data.get('content', '')
-                    msg_type = data.get('msg_type', 'text')
-                    
-                    if msg_type == 'text' and len(content) > 1000:
-                        await ws.send_json({"type": "error_msg", "text": "Сообщение слишком длинное (лимит 1000 символов)!"})
-                        continue
-                        
                     time_str = datetime.datetime.now().strftime("%H:%M")
                     
                     res = await pool.fetchrow("SELECT is_banned FROM users WHERE username = $1", user_info["username"])
-                    if res and res['is_banned'] == 1:
-                        await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены!"})
-                        continue
+                    if res and res['is_banned']: continue
 
-                    db_room = room
-                    if room.startswith("PRIVATE|"):
-                        db_room = await get_or_create_private_room(pool, room)
+                    db_room = await get_or_create_private_room(pool, room) if room.startswith("PRIVATE|") else room
                     
                     msg_id = await pool.fetchval(
                         "INSERT INTO messages (room, user_id, content, msg_type, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id", 
@@ -670,68 +486,49 @@ async def websocket_handler(request):
                     )
                     
                     allowed_users = set()
-                    is_private = False
-                    
-                    if room.startswith("PRIVATE|"):
-                        is_private = True
-                        parts = room.split('|')
-                        if len(parts) == 3:
-                            allowed_users = {parts[1], parts[2]}
+                    is_private = room.startswith("PRIVATE|")
+                    if is_private:
+                        allowed_users = {room.split('|')[1], room.split('|')[2]}
                     else:
                         members_rows = await pool.fetch("SELECT username FROM room_members WHERE room_name = $1", room)
                         allowed_users = {r['username'] for r in members_rows}
                     
                     for client, info in list(active_connections.items()):
                         if info["username"]:
-                            if is_private:
-                                if info["username"] not in allowed_users: continue
-                            else:
-                                if info["username"] not in allowed_users and info.get("room") != room:
-                                    continue
-                            
+                            if is_private and info["username"] not in allowed_users: continue
+                            if not is_private and info["username"] not in allowed_users and info.get("room") != room: continue
                             try:
                                 await client.send_json({
                                     "type": "msg", "id": msg_id, "room": room, 
                                     "username": user_info["username"], "content": content, "msg_type": msg_type, "time": time_str
                                 })
-                            except Exception:
-                                pass
+                            except: pass
 
                 elif action == 'join_room':
                     room = data.get('room')
                     active_connections[ws]["room"] = room
                     await ws.send_json({"type": "clear_chat"})
-                    
-                    db_room = room
-                    if room.startswith("PRIVATE|"):
-                        db_room = await get_or_create_private_room(pool, room)
+                    db_room = await get_or_create_private_room(pool, room) if room.startswith("PRIVATE|") else room
                     
                     history_rows = await pool.fetch('''
                         SELECT m.id, u.username, m.content, m.msg_type, m.timestamp 
-                        FROM messages m
-                        JOIN users u ON m.user_id = u.id
-                        WHERE m.room = $1 
-                        ORDER BY m.id ASC 
-                        LIMIT 100
+                        FROM messages m JOIN users u ON m.user_id = u.id
+                        WHERE m.room = $1 ORDER BY m.id ASC LIMIT 100
                     ''', db_room)
                     
                     for r in history_rows:
                         await ws.send_json({"type": "msg", "id": r['id'], "room": room, "username": r['username'], "content": r['content'], "msg_type": r['msg_type'], "time": r['timestamp'], "history": True})
 
-                elif action == 'delete_msg':
-                    if active_connections[ws]["role"] == 'admin':
-                        msg_id = data.get('msg_id')
-                        await pool.execute("UPDATE messages SET content = 'Сообщение удалено администратором', msg_type = 'system' WHERE id = $1", msg_id)
-                        for client in list(active_connections.keys()):
-                            try:
-                                await client.send_json({"type": "delete_evt", "id": msg_id})
-                            except Exception:
-                                pass
+                elif action == 'delete_msg' and active_connections[ws]["role"] == 'admin':
+                    msg_id = data.get('msg_id')
+                    await pool.execute("UPDATE messages SET content = 'Удалено админом', msg_type = 'system' WHERE id = $1", msg_id)
+                    for client in list(active_connections.keys()):
+                        try: await client.send_json({"type": "delete_evt", "id": msg_id})
+                        except: pass
                             
-                elif action == 'ban_user':
-                    if active_connections[ws]["role"] == 'admin':
-                        target_user = data.get('username')
-                        if target_user == 'Grom': continue
+                elif action == 'ban_user' and active_connections[ws]["role"] == 'admin':
+                    target_user = data.get('username')
+                    if target_user != 'Grom':
                         await pool.execute("UPDATE users SET is_banned = 1 WHERE username = $1", target_user)
                         for client, info in list(active_connections.items()):
                             if info["username"] == target_user:
@@ -740,38 +537,19 @@ async def websocket_handler(request):
 
                 elif action == 'call_user':
                     if not sender_name: continue
-                    target = data.get('target')
-                    target_ws = get_ws_by_username(target)
-                    if target_ws:
-                        await target_ws.send_json({
-                            "type": "incoming_call",
-                            "from": sender_name
-                        })
-                    else:
-                        await ws.send_json({"type": "error_msg", "text": "Пользователь сейчас оффлайн"})
+                    target_ws = get_ws_by_username(data.get('target'))
+                    if target_ws: await target_ws.send_json({"type": "incoming_call", "from": sender_name})
+                    else: await ws.send_json({"type": "error_msg", "text": "Оффлайн"})
 
                 elif action == 'call_response':
                     if not sender_name: continue
-                    target = data.get('target')
-                    accepted = data.get('accepted')
-                    target_ws = get_ws_by_username(target)
-                    if target_ws:
-                        await target_ws.send_json({
-                            "type": "call_response",
-                            "from": sender_name,
-                            "accepted": accepted
-                        })
+                    target_ws = get_ws_by_username(data.get('target'))
+                    if target_ws: await target_ws.send_json({"type": "call_response", "from": sender_name, "accepted": data.get('accepted')})
 
                 elif action == 'webrtc_signal':
                     if not sender_name: continue
-                    target = data.get('target')
-                    target_ws = get_ws_by_username(target)
-                    if target_ws:
-                        await target_ws.send_json({
-                            "type": "webrtc_signal",
-                            "from": sender_name,
-                            "signal": data.get('signal')
-                        })
+                    target_ws = get_ws_by_username(data.get('target'))
+                    if target_ws: await target_ws.send_json({"type": "webrtc_signal", "from": sender_name, "signal": data.get('signal')})
     finally:
         active_connections.pop(ws, None)
     return ws
