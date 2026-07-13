@@ -14,30 +14,150 @@ import random
 
 routes = web.RouteTableDef()
 
+# Список для хранения всех активных подключений к чату (вебсокетов)
+active_connections = set()
+
+# 1. МАРШРУТ: Отдает главную страницу (интерфейс чата и авторизации)
+@routes.get('/')
+async def index(request):
+    return web.FileResponse('index.html')
+
+
+# 2. МАРШРУТ: РЕГИСТРАЦИЯ (Исправление ошибки 404)
 @routes.post('/register')
 async def register_handler(request):
-    data = await request.json()
-    username = data.get('username')
-    password = data.get('password')
+    try:
+        data = await request.json()
+        username = data.get('username')
+        password = data.get('password')
 
-    if not username or not password:
-        return web.json_response({'error': 'Заполните все поля'}, status=400)
+        if not username or not password:
+            return web.json_response({'error': 'Заполните все поля'}, status=400)
 
+        pool = request.app['pool']
+        async with pool.acquire() as conn:
+            # Проверяем, занят ли никнейм
+            existing = await conn.fetchrow('SELECT id FROM users WHERE username = $1', username)
+            if existing:
+                return web.json_response({'error': 'Никнейм уже занят'}, status=409)
+
+            # Хешируем пароль и создаем уникальный токен авторизации
+            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+            token = str(uuid.uuid4())
+
+            # Сохраняем нового пользователя в базу
+            await conn.execute(
+                'INSERT INTO users (username, password_hash, token) VALUES ($1, $2, $3)',
+                username, hashed_pw, token
+            )
+
+        return web.json_response({'success': True, 'username': username, 'token': token})
+    except Exception as e:
+        print(f"Ошибка регистрации: {e}")
+        return web.json_response({'error': 'Внутренняя ошибка сервера'}, status=500)
+
+
+# 3. МАРШРУТ: ВХОД (ЛОГИН)
+@routes.post('/login')
+async def login_handler(request):
+    try:
+        data = await request.json()
+        username = data.get('username')
+        password = data.get('password')
+
+        pool = request.app['pool']
+        async with pool.acquire() as conn:
+            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+            user = await conn.fetchrow(
+                'SELECT token FROM users WHERE username = $1 AND password_hash = $2', 
+                username, hashed_pw
+            )
+            if not user:
+                return web.json_response({'error': 'Неверный логин или пароль'}, status=401)
+            
+            return web.json_response({'success': True, 'username': username, 'token': user['token']})
+    except Exception as e:
+        return web.json_response({'error': 'Внутренняя ошибка сервера'}, status=500)
+
+
+# 4. МАРШРУТ: РАБОТА ЧАТА (WebSockets)
+@routes.get('/ws')
+async def websocket_handler(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    # Проверяем токен пользователя при подключении
+    token = request.query.get('token')
     pool = request.app['pool']
+    
     async with pool.acquire() as conn:
-        existing = await conn.fetchrow('SELECT id FROM users WHERE username = $1', username)
-        if existing:
-            return web.json_response({'error': 'Никнейм занят'}, status=409)
+        user = await conn.fetchrow('SELECT username FROM users WHERE token = $1', token)
+        if not user:
+            await ws.close(code=4001, message=b'Invalid Token')
+            return ws
+        username = user['username']
 
-        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-        token = str(uuid.uuid4())
+    active_connections.add(ws)
+    print(f"Пользователь {username} зашел в чат")
 
-        await conn.execute(
-            'INSERT INTO users (username, password_hash, token) VALUES ($1, $2, $3)',
-            username, hashed_pw, token
-        )
+    try:
+        async for msg in ws:
+            if msg.type == web.WSMsgType.TEXT:
+                data = json.loads(msg.data)
+                text = data.get('text', '')
+                
+                # Рассылаем сообщение всем, кто онлайн
+                broadcast_data = json.dumps({'username': username, 'text': text})
+                for conn in active_connections:
+                    if not conn.closed:
+                        await conn.send_str(broadcast_data)
+    finally:
+        active_connections.remove(ws)
+        print(f"Пользователь {username} покинул чат")
+    
+    return ws
 
-    return web.json_response({'success': True, 'username': username, 'token': token})
+
+# НАСТРОЙКА И ЗАПУСК БАЗЫ ДАННЫХ И ПРИЛОЖЕНИЯ
+async def init_db(app):
+    # !!! ОБЯЗАТЕЛЬНО УКАЖИ СВОИ ДАННЫЕ ПОДКЛЮЧЕНИЯ К POSTGRESQL НИЖЕ !!!
+    app['pool'] = await asyncpg.create_pool(
+        user='postgres',
+        password='твой_пароль_от_бд',
+        database='имя_твоей_базы_данных',
+        host='127.0.0.1',
+        port=5432
+    )
+    
+    # Автоматически создаем таблицу пользователей, если её еще нет
+    async with app['pool'].acquire() as conn:
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(64) NOT NULL,
+                token VARCHAR(36) NOT NULL
+            );
+        ''')
+
+async def close_db(app):
+    await app['pool'].close()
+
+app = web.Application()
+app.add_routes(routes)
+app.on_startup.append(init_db)
+app.on_cleanup.append(close_db)
+
+if __name__ == '__main__':
+    print("Сервер запущен на http://127.0.0.1:8080")
+    web.run_app(app, host='127.0.0.1', port=8080)
+
+
+
+
+
+
+
 
 
 
