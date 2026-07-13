@@ -191,6 +191,19 @@ async def init_db(app):
                 UNIQUE(room_name, username)
             )
         ''')
+
+
+
+
+
+   row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Alexander'")
+        if not row:
+            await conn.execute(
+                "INSERT INTO users (username, email, role) VALUES ($1, $2, $3)",
+                'Alexander', 'sasamalis2011sasa@gmail.com', 'admin'
+            )
+
+
         
         # Создание админа Grom
         row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Grom'")
