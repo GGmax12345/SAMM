@@ -2,59 +2,165 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SAM Messenger - Настройки профиля</title>
     <style>
         * { box-sizing: border-box; }
-        body {
-            background-color: #0e1621; color: #efeef1; margin: 0;
+        html, body {
+            height: 100%; margin: 0;
+            background-color: #0e1621; color: #efeef1;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            display: flex; justify-content: center; align-items: center; height: 100vh;
+            overflow-x: hidden; -webkit-tap-highlight-color: transparent;
+        }
+        body { display: flex; flex-direction: column; position: relative; }
+
+        .bg-glow {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background:
+                radial-gradient(circle at 15% 20%, rgba(80,170,255,0.30), transparent 55%),
+                radial-gradient(circle at 85% 15%, rgba(10,40,110,0.40), transparent 55%),
+                radial-gradient(circle at 50% 90%, rgba(100,180,255,0.26), transparent 60%),
+                radial-gradient(circle at 90% 80%, rgba(6,25,80,0.38), transparent 55%),
+                radial-gradient(circle at 30% 60%, rgba(40,110,210,0.24), transparent 55%),
+                #0e1621;
+            background-size: 250% 250%;
+            filter: blur(38px);
+            animation: bgShift 18s ease-in-out infinite;
+        }
+        @keyframes bgShift {
+            0% { background-position: 0% 0%; } 25% { background-position: 80% 30%; }
+            50% { background-position: 100% 70%; } 75% { background-position: 30% 90%; }
+            100% { background-position: 0% 0%; }
+        }
+        .cursor-light {
+            position: fixed; top: 0; left: 0; z-index: 1; pointer-events: none;
+            width: 480px; height: 480px; margin: -240px 0 0 -240px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(82,161,241,0.13), rgba(82,161,241,0.05) 40%, transparent 72%);
+            transition: opacity 0.4s ease; filter: blur(8px); opacity: 0;
+        }
+
+        .topbar { position: relative; z-index: 2;
+            display: flex; align-items: center; gap: 14px;
+            padding: 12px 20px;
+            background-color: rgba(23,33,43,0.55);
+            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(163,191,255,0.07);
+            flex-shrink: 0;
+        }
+        .back-btn {
+            width: 34px; height: 34px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: #7f91a4; text-decoration: none; flex-shrink: 0;
+            transition: background 0.2s, color 0.2s, transform 0.15s;
+            position: relative; overflow: hidden;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
+        .back-btn:active { transform: scale(0.88); }
+        .back-btn svg { width: 20px; height: 20px; }
+        .topbar-title { font-size: 17px; font-weight: 600; color: #fff; }
+        .topbar-sub { font-size: 12px; color: #7f91a4; margin-top: 1px; }
+
+        .content {
+            position: relative; z-index: 2;
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            padding: clamp(20px, 6vw, 40px);
         }
         .profile-card {
-            background-color: #17212b; width: 360px; padding: 30px;
-            border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); text-align: center;
+            background-color: rgba(23, 33, 43, 0.45);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            width: min(380px, 92vw);
+            padding: clamp(26px, 6vw, 34px);
+            border-radius: 20px;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+            text-align: center;
+            border: 1px solid rgba(163, 191, 255, 0.10);
+            opacity: 0; transform: translateY(14px);
+            animation: cardIn 0.5s ease forwards;
         }
+        @keyframes cardIn { to { opacity: 1; transform: translateY(0); } }
+
         .profile-avatar {
-            width: 80px; height: 80px; border-radius: 50%; background: #2a94e6;
-            color: white; font-size: 36px; font-weight: bold; display: flex;
-            align-items: center; justify-content: center; margin: 0 auto 20px auto;
+            width: clamp(70px, 16vw, 84px); height: clamp(70px, 16vw, 84px);
+            border-radius: 50%;
+            background: linear-gradient(135deg, #5AC8FA, #2481CC);
+            color: white; font-size: clamp(28px, 6vw, 34px); font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto clamp(16px, 4vw, 20px) auto;
+            box-shadow: 0 6px 18px rgba(36,129,204,0.35);
         }
-        h3 { margin: 0 0 5px 0; color: #fff; }
-        p { color: #7f91a4; margin-bottom: 25px; font-size: 14px; }
-        .input-label { text-align: left; display: block; color: #5288c1; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+        h3 { margin: 0 0 5px 0; color: #fff; font-size: clamp(17px, 4vw, 19px); }
+        p { color: #7f91a4; margin-bottom: clamp(20px, 5vw, 25px); font-size: 13.5px; }
+
+        .input-label {
+            text-align: left; display: block; color: #5288c1; font-size: 12.5px;
+            font-weight: 600; margin-bottom: 6px; letter-spacing: 0.3px;
+        }
         .profile-input {
-            width: 100%; padding: 12px; background: #0e1621; border: 1px solid #24303f;
-            border-radius: 6px; color: white; outline: none; font-size: 15px; margin-bottom: 20px;
+            width: 100%; padding: 13px 14px;
+            background: rgba(14,22,33,0.55);
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(163,191,255,0.10);
+            border-radius: 12px; color: white; outline: none; font-size: 16px; margin-bottom: 20px;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
-        .profile-input:focus { border-color: #2481cc; }
+        .profile-input:focus { border-color: #2481cc; box-shadow: 0 0 0 3px rgba(36,129,204,0.15); }
+
         .btn-save {
-            width: 100%; padding: 12px; background-color: #2481cc; color: white;
-            border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px;
+            width: 100%; padding: 13px;
+            background: linear-gradient(135deg, #2481cc, #1c6aa8);
+            color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 15px;
+            transition: filter 0.2s, transform 0.12s, box-shadow 0.2s;
+            position: relative; overflow: hidden; isolation: isolate;
         }
-        .btn-save:hover { background-color: #2a94e6; }
+        .btn-save:hover { filter: brightness(1.12); box-shadow: 0 8px 22px rgba(36,129,204,0.4); }
+        .btn-save:active { transform: scale(0.97); }
+
+        .ripple {
+            position: absolute; border-radius: 50%; background: rgba(255,255,255,0.5);
+            transform: scale(0); animation: rippleAnim 0.6s ease-out;
+            pointer-events: none; z-index: 0;
+        }
+        @keyframes rippleAnim { to { transform: scale(3.2); opacity: 0; } }
+
         .btn-back {
-            display: block; margin-top: 15px; color: #7f91a4; text-decoration: none; font-size: 14px;
+            display: block; margin-top: 16px; color: #7f91a4; text-decoration: none; font-size: 14px;
+            transition: color 0.2s;
         }
         .btn-back:hover { color: #fff; }
     </style>
 </head>
 <body>
-    <div class="profile-card">
-        <div class="profile-avatar" id="p-avatar">U</div>
-        <h3 id="p-display-name">Username</h3>
-        <p>Изменение настроек аккаунта</p>
-        
-        <label class="input-label">ИМЯ ПОЛЬЗОВАТЕЛЯ (НИК)</label>
-        <input type="text" id="nickname-input" class="profile-input" placeholder="Введите новый ник...">
-        
-        <button class="btn-save" onclick="saveProfile()">Сохранить изменения</button>
-        <a href="/chat" class="btn-back">← Назад к чатам</a>
+    <div class="bg-glow"></div>
+    <div class="cursor-light" id="cursorLight"></div>
+
+    <div class="topbar">
+        <a href="/chat" class="back-btn" data-ripple title="Назад в чат">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </a>
+        <div>
+            <div class="topbar-title">Профиль</div>
+            <div class="topbar-sub">настройки аккаунта</div>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="profile-card">
+            <div class="profile-avatar" id="p-avatar">U</div>
+            <h3 id="p-display-name">Username</h3>
+            <p>Изменение настроек аккаунта</p>
+
+            <label class="input-label">ИМЯ ПОЛЬЗОВАТЕЛЯ (НИК)</label>
+            <input type="text" id="nickname-input" class="profile-input" placeholder="Введите новый ник...">
+
+            <button class="btn-save" onclick="saveProfile()" data-ripple>Сохранить изменения</button>
+            <a href="/chat" class="btn-back">← Назад к чатам</a>
+        </div>
     </div>
 
     <script>
         const u = localStorage.getItem('sam_username');
         const p = localStorage.getItem('sam_password');
-        if(!u || !p) window.location.href = '/';
+        if (!u || !p) window.location.href = '/';
 
         document.getElementById('p-display-name').textContent = u;
         document.getElementById('p-avatar').textContent = u.charAt(0).toUpperCase();
@@ -63,11 +169,8 @@
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
 
-        ws.onopen = function() {
-            ws.send(JSON.stringify({ action: 'login', username: u, password: p }));
-        };
-
-        ws.onmessage = function(event) {
+        ws.onopen = function () { ws.send(JSON.stringify({ action: 'login', username: u, password: p })); };
+        ws.onmessage = function (event) {
             const data = JSON.parse(event.data);
             if (data.type === 'nickname_changed') {
                 localStorage.setItem('sam_username', data.new_name);
@@ -77,14 +180,39 @@
                 alert(data.text);
             }
         };
-
         function saveProfile() {
             const newNick = document.getElementById('nickname-input').value.trim();
-            if(!newNick) return alert("Ник не может быть пустым!");
-            if(newNick === u) return window.location.href = '/chat';
-            
+            if (!newNick) return alert("Ник не может быть пустым!");
+            if (newNick === u) return window.location.href = '/chat';
             ws.send(JSON.stringify({ action: 'change_nickname', new_nickname: newNick }));
         }
+
+        const isTouch = window.matchMedia('(hover: none)').matches;
+        const light = document.getElementById('cursorLight');
+        if (!isTouch) {
+            let mx = window.innerWidth / 2, my = window.innerHeight / 2, lx = mx, ly = my;
+            document.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; light.style.opacity = '1'; });
+            document.addEventListener('mouseleave', () => { light.style.opacity = '0'; });
+            (function loop() {
+                lx += (mx - lx) * 0.18; ly += (my - ly) * 0.18;
+                light.style.transform = `translate3d(${lx}px, ${ly}px, 0)`;
+                requestAnimationFrame(loop);
+            })();
+        } else { light.style.display = 'none'; }
+
+        document.querySelectorAll('[data-ripple]').forEach(el => {
+            el.addEventListener('click', function (e) {
+                const rect = this.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const ripple = document.createElement('span');
+                ripple.className = 'ripple';
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+                ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+                this.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            });
+        });
     </script>
 </body>
 </html>
