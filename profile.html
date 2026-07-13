@@ -2,217 +2,415 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>SAM Messenger - Настройки профиля</title>
+    <title>SAM Messenger - Вход</title>
     <style>
         * { box-sizing: border-box; }
-        html, body {
-            height: 100%; margin: 0;
-            background-color: #0e1621; color: #efeef1;
+        
+        body {
+            background: radial-gradient(circle at center, #070b14 0%, #020408 100%);
+            /* Чуть синеватый текст по всему body */
+            color: #dbe5ff; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            overflow-x: hidden; -webkit-tap-highlight-color: transparent;
-        }
-        body { display: flex; flex-direction: column; position: relative; }
-
-        .bg-glow {
-            position: fixed; inset: 0; z-index: 0; pointer-events: none;
-            background:
-                radial-gradient(circle at 15% 20%, rgba(80,170,255,0.30), transparent 55%),
-                radial-gradient(circle at 85% 15%, rgba(10,40,110,0.40), transparent 55%),
-                radial-gradient(circle at 50% 90%, rgba(100,180,255,0.26), transparent 60%),
-                radial-gradient(circle at 90% 80%, rgba(6,25,80,0.38), transparent 55%),
-                radial-gradient(circle at 30% 60%, rgba(40,110,210,0.24), transparent 55%),
-                #0e1621;
-            background-size: 250% 250%;
-            filter: blur(38px);
-            animation: bgShift 18s ease-in-out infinite;
-        }
-        @keyframes bgShift {
-            0% { background-position: 0% 0%; } 25% { background-position: 80% 30%; }
-            50% { background-position: 100% 70%; } 75% { background-position: 30% 90%; }
-            100% { background-position: 0% 0%; }
-        }
-        .cursor-light {
-            position: fixed; top: 0; left: 0; z-index: 1; pointer-events: none;
-            width: 480px; height: 480px; margin: -240px 0 0 -240px; border-radius: 50%;
-            background: radial-gradient(circle, rgba(82,161,241,0.13), rgba(82,161,241,0.05) 40%, transparent 72%);
-            transition: opacity 0.4s ease; filter: blur(8px); opacity: 0;
+            display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;
+            overflow: hidden;
+            perspective: 1000px;
         }
 
-        .topbar { position: relative; z-index: 2;
-            display: flex; align-items: center; gap: 14px;
-            padding: 12px 20px;
-            background-color: rgba(23,33,43,0.55);
-            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-            border-bottom: 1px solid rgba(163,191,255,0.07);
-            flex-shrink: 0;
-        }
-        .back-btn {
-            width: 34px; height: 34px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            color: #7f91a4; text-decoration: none; flex-shrink: 0;
-            transition: background 0.2s, color 0.2s, transform 0.15s;
-            position: relative; overflow: hidden;
-        }
-        .back-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
-        .back-btn:active { transform: scale(0.88); }
-        .back-btn svg { width: 20px; height: 20px; }
-        .topbar-title { font-size: 17px; font-weight: 600; color: #fff; }
-        .topbar-sub { font-size: 12px; color: #7f91a4; margin-top: 1px; }
-
-        .content {
-            position: relative; z-index: 2;
-            flex: 1; display: flex; align-items: center; justify-content: center;
-            padding: clamp(20px, 6vw, 40px);
-        }
-        .profile-card {
-            background-color: rgba(23, 33, 43, 0.45);
-            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-            width: min(380px, 92vw);
-            padding: clamp(26px, 6vw, 34px);
-            border-radius: 20px;
-            box-shadow: 0 24px 60px rgba(0,0,0,0.45);
-            text-align: center;
-            border: 1px solid rgba(163, 191, 255, 0.10);
-            opacity: 0; transform: translateY(14px);
-            animation: cardIn 0.5s ease forwards;
-        }
-        @keyframes cardIn { to { opacity: 1; transform: translateY(0); } }
-
-        .profile-avatar {
-            width: clamp(70px, 16vw, 84px); height: clamp(70px, 16vw, 84px);
+        /* 1. ФОНАРИК ДЛЯ ЗАДНЕГО ФОНА (Снаружи) */
+        #cursor-glow-bg {
+            position: absolute;
+            width: 250px; 
+            height: 250px;
+            background: radial-gradient(circle, rgba(0, 160, 255, 0.3) 0%, transparent 60%);
+            filter: blur(15px);
             border-radius: 50%;
-            background: linear-gradient(135deg, #5AC8FA, #2481CC);
-            color: white; font-size: clamp(28px, 6vw, 34px); font-weight: bold;
-            display: flex; align-items: center; justify-content: center;
-            margin: 0 auto clamp(16px, 4vw, 20px) auto;
-            box-shadow: 0 6px 18px rgba(36,129,204,0.35);
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            transition: opacity 0.4s ease;
         }
-        h3 { margin: 0 0 5px 0; color: #fff; font-size: clamp(17px, 4vw, 19px); }
-        p { color: #7f91a4; margin-bottom: clamp(20px, 5vw, 25px); font-size: 13.5px; }
 
-        .input-label {
-            text-align: left; display: block; color: #5288c1; font-size: 12.5px;
-            font-weight: 600; margin-bottom: 6px; letter-spacing: 0.3px;
+        /* 2. ГЛАВНАЯ ПАНЕЛЬ */
+        #auth-block {
+            position: relative;
+            background: rgba(10, 16, 26, 0.7);
+            backdrop-filter: blur(35px);
+            -webkit-backdrop-filter: blur(35px);
+            border: 1px solid rgba(163, 191, 255, 0.05);
+            border-radius: 24px; 
+            padding: 40px 36px; 
+            width: 390px;
+            box-shadow: 0 40px 90px rgba(0, 0, 0, 0.95);
+            text-align: center; 
+            transform-style: preserve-3d;
+            z-index: 1;
+            /* Свечение текста для всех элементов внутри */
+            text-shadow: 0 0 8px rgba(163, 191, 255, 0.25);
+            overflow: hidden; /* Чтобы внутренний свет не вылезал */
         }
-        .profile-input {
-            width: 100%; padding: 13px 14px;
-            background: rgba(14,22,33,0.55);
-            backdrop-filter: blur(6px);
-            border: 1px solid rgba(163,191,255,0.10);
-            border-radius: 12px; color: white; outline: none; font-size: 16px; margin-bottom: 20px;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .profile-input:focus { border-color: #2481cc; box-shadow: 0 0 0 3px rgba(36,129,204,0.15); }
 
-        .btn-save {
-            width: 100%; padding: 13px;
-            background: linear-gradient(135deg, #2481cc, #1c6aa8);
-            color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 15px;
-            transition: filter 0.2s, transform 0.12s, box-shadow 0.2s;
-            position: relative; overflow: hidden; isolation: isolate;
+        /* ФОНАРИК ВНУТРИ ПАНЕЛИ (Светит сквозь кнопки) */
+        #panel-inner-glow {
+            position: absolute;
+            width: 280px; height: 280px;
+            background: radial-gradient(circle, rgba(0, 190, 255, 0.26) 0%, transparent 60%);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            opacity: 0; /* Выключен, пока мы не наведем на панель */
+            transition: opacity 0.4s ease;
         }
-        .btn-save:hover { filter: brightness(1.12); box-shadow: 0 8px 22px rgba(36,129,204,0.4); }
-        .btn-save:active { transform: scale(0.97); }
 
-        .ripple {
-            position: absolute; border-radius: 50%; background: rgba(255,255,255,0.5);
-            transform: scale(0); animation: rippleAnim 0.6s ease-out;
-            pointer-events: none; z-index: 0;
+        #auth-block h2 { 
+            position: relative; z-index: 2; 
+            margin: 0 0 30px 0; 
+            font-size: 28px;
+            font-weight: 700; 
+            background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: none;
         }
-        @keyframes rippleAnim { to { transform: scale(3.2); opacity: 0; } }
 
-        .btn-back {
-            display: block; margin-top: 16px; color: #7f91a4; text-decoration: none; font-size: 14px;
-            transition: color 0.2s;
+        /* 3. СТЕКЛЯННЫЕ ЭЛЕМЕНТЫ */
+        .glass-element {
+            position: relative;
+            width: 100%; margin: 14px 0;
+            /* Более прозрачный фон, чтобы внутренний свет панели просвечивал! */
+            background: rgba(12, 18, 30, 0.35); 
+            border-radius: 14px; 
+            transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(1);
+            transition: background 0.3s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1), box-shadow 0.3s;
+            z-index: 2;
         }
-        .btn-back:hover { color: #fff; }
+
+        .glass-glow {
+            position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: 1;
+        }
+        .glass-glow::before {
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(130px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 200, 255, 0.2), transparent 100%);
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+
+        /* МЯГКИЙ НЕОНОВЫЙ КРАЙ (в цвет дизайна) */
+        .glass-element::after {
+            content: ''; position: absolute; inset: -1px;
+            border-radius: inherit; padding: 2px;
+            background: radial-gradient(100px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 180, 255, 0.7) 0%, rgba(0, 100, 255, 0.3) 50%, transparent 100%);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+            pointer-events: none; z-index: 5; opacity: 0.35; 
+            transition: opacity 0.3s ease;
+        }
+
+        .glass-element:hover { background: rgba(8, 12, 22, 0.45); }
+        .glass-element:hover .glass-glow::before, .glass-element:hover::after { opacity: 1; }
+
+        .glass-element:active {
+            transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(0.96) translateY(3px) !important;
+            background: rgba(4, 6, 10, 0.98) !important; 
+        }
+        .glass-element:active .glass-glow::before { opacity: 1 !important; }
+        .glass-element:active::after { opacity: 0.6 !important; }
+
+        /* 4. ВКЛАДКИ И КАПСУЛА */
+        .tabs-glass {
+            background: rgba(12, 18, 28, 0.6); 
+            padding: 5px; 
+            margin-bottom: 25px;
+            display: flex; align-items: center;
+            overflow: hidden;
+        }
+        .auth-tabs { display: flex; width: 100%; position: relative; z-index: 2; }
+        
+        .tab { 
+            flex: 1; padding: 12px 0; cursor: pointer; color: #5c7499; 
+            font-weight: 600; font-size: 14px; text-align: center;
+            position: relative; z-index: 3; transition: color 0.3s ease;
+        }
+        .tab.active { color: #dbe5ff; text-shadow: 0 0 12px rgba(0, 180, 255, 0.5); }
+
+        /* КАПСУЛА */
+        .tab-slider {
+            position: absolute; 
+            top: 5px; bottom: 5px; 
+            /* Стартовая позиция */
+            left: 5px; width: calc(50% - 5px); 
+            background: rgba(0, 150, 255, 0.2);
+            /* Мягкая рамка в цвет */
+            border: 1px solid rgba(0, 180, 255, 0.35);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 180, 255, 0.3), inset 0 0 10px rgba(0, 180, 255, 0.2);
+            z-index: 1; pointer-events: none;
+        }
+
+        /* 5. ПОЛЯ ВВОДА И ГЛАЗИК */
+        .auth-input { 
+            width: 100%; padding: 16px 45px 16px 16px; 
+            background: transparent; border: none; 
+            color: #dbe5ff; outline: none; 
+            position: relative; z-index: 4; font-size: 15px;
+        }
+        .auth-input::placeholder { color: #435368; text-shadow: none; }
+
+        /* Лёгкая плавная дрожь поля при вводе символов */
+        @keyframes inputTypeShake {
+            0%   { transform: translateX(0); }
+            20%  { transform: translateX(-1.2px); }
+            40%  { transform: translateX(1px); }
+            60%  { transform: translateX(-0.8px); }
+            80%  { transform: translateX(0.5px); }
+            100% { transform: translateX(0); }
+        }
+        .auth-input.typing-shake { animation: inputTypeShake 0.18s ease-in-out; }
+        @media (prefers-reduced-motion: reduce) {
+            .auth-input.typing-shake { animation: none; }
+        }
+
+        .toggle-pass-btn {
+            position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; padding: 0; margin: 0;
+            color: #6e89b5; cursor: pointer; z-index: 10;
+            transition: color 0.3s ease, filter 0.3s ease;
+        }
+        .toggle-pass-btn:hover { 
+            color: #b0ccff; /* Светящийся синеватый цвет при наведении */
+            filter: drop-shadow(0 0 6px rgba(176, 204, 255, 0.6));
+        }
+        .toggle-pass-btn svg { width: 20px; height: 20px; }
+
+        #reg-pass-wrap {
+            max-height: 0; opacity: 0; overflow: hidden; margin: 0;
+            transition: max-height 0.4s ease, opacity 0.3s ease;
+        }
+        #reg-pass-wrap.expanded { max-height: 100px; opacity: 1; }
+
+        .auth-btn {
+            padding: 16px; margin-top: 15px;
+            background: rgba(0, 140, 255, 0.15);
+            font-weight: 600; cursor: pointer; color: #dbe5ff; font-size: 16px;
+            display: flex; justify-content: center; align-items: center; border: none;
+            /* Неоновое отражение: свет реально "выливается" за пределы кнопки */
+            box-shadow: 0 0 22px rgba(0, 170, 255, 0.28), 0 10px 28px rgba(0, 110, 255, 0.18), inset 0 0 16px rgba(0, 190, 255, 0.08);
+        }
+        .auth-btn:hover {
+            box-shadow: 0 0 34px rgba(0, 180, 255, 0.48), 0 12px 34px rgba(0, 120, 255, 0.28), inset 0 0 20px rgba(0, 190, 255, 0.16);
+        }
+        .auth-btn:active {
+            box-shadow: 0 0 26px rgba(0, 180, 255, 0.55), inset 0 0 18px rgba(0, 190, 255, 0.22) !important;
+        }
+        .auth-btn span { position: relative; z-index: 4; }
+
+        #auth-error { position: relative; z-index: 2; color: #ff5757; font-size: 14px; margin-top: 15px; min-height: 20px; text-align: center; }
     </style>
 </head>
 <body>
-    <div class="bg-glow"></div>
-    <div class="cursor-light" id="cursorLight"></div>
 
-    <div class="topbar">
-        <a href="/chat" class="back-btn" data-ripple title="Назад в чат">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-        </a>
-        <div>
-            <div class="topbar-title">Профиль</div>
-            <div class="topbar-sub">настройки аккаунта</div>
+    <div id="cursor-glow-bg"></div>
+
+    <div id="auth-block">
+        <div id="panel-inner-glow"></div>
+
+        <h2>SAM Messenger</h2>
+        
+        <div class="glass-element tabs-glass">
+            <div class="glass-glow"></div>
+            <div class="tab-slider" id="tab-slider"></div>
+            <div class="auth-tabs">
+                <div id="tab-login" class="tab active" onclick="switchAuthTab('login')">Вход</div>
+                <div id="tab-reg" class="tab" onclick="switchAuthTab('register')">Регистрация</div>
+            </div>
         </div>
-    </div>
 
-    <div class="content">
-        <div class="profile-card">
-            <div class="profile-avatar" id="p-avatar">U</div>
-            <h3 id="p-display-name">Username</h3>
-            <p>Изменение настроек аккаунта</p>
-
-            <label class="input-label">ИМЯ ПОЛЬЗОВАТЕЛЯ (НИК)</label>
-            <input type="text" id="nickname-input" class="profile-input" placeholder="Введите новый ник...">
-
-            <button class="btn-save" onclick="saveProfile()" data-ripple>Сохранить изменения</button>
-            <a href="/chat" class="btn-back">← Назад к чатам</a>
+        <div class="glass-element">
+            <div class="glass-glow"></div>
+            <input type="text" id="auth-user" class="auth-input" placeholder="Имя пользователя" autocomplete="off">
         </div>
+
+        <div class="glass-element">
+            <div class="glass-glow"></div>
+            <input type="password" id="auth-pass" class="auth-input" placeholder="Пароль">
+            <button class="toggle-pass-btn" onclick="togglePasswordVisibility('auth-pass', this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </button>
+        </div>
+
+        <div id="reg-pass-wrap">
+            <div class="glass-element">
+                <div class="glass-glow"></div>
+                <input type="password" id="auth-pass-repeat" class="auth-input" placeholder="Повторите пароль">
+                <button class="toggle-pass-btn" onclick="togglePasswordVisibility('auth-pass-repeat', this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <button class="auth-btn glass-element" onclick="submitAuth()">
+            <div class="glass-glow"></div>
+            <span id="btn-text">Войти в систему</span>
+        </button>
+        
+        <div id="auth-error"></div>
     </div>
 
     <script>
-        const u = localStorage.getItem('sam_username');
-        const p = localStorage.getItem('sam_password');
-        if (!u || !p) window.location.href = '/';
+        let currentAuthAction = 'login';
 
-        document.getElementById('p-display-name').textContent = u;
-        document.getElementById('p-avatar').textContent = u.charAt(0).toUpperCase();
-        document.getElementById('nickname-input').value = u;
+        // --- 1. АНИМАЦИЯ КАПСУЛЫ (Полет, удар и сплющивание) ---
+        function switchAuthTab(type) {
+            if (currentAuthAction === type) return;
+            currentAuthAction = type;
+            
+            const slider = document.getElementById('tab-slider');
+            const isReg = type === 'register';
 
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+            // Этап 1: Плавно вытягивается на всю длину (без резкого удара "рано")
+            slider.style.transition = 'left 0.2s cubic-bezier(0.45, 0, 0.55, 1), width 0.2s cubic-bezier(0.45, 0, 0.55, 1)';
+            slider.style.left = '5px';
+            slider.style.width = 'calc(100% - 10px)';
 
-        ws.onopen = function () { ws.send(JSON.stringify({ action: 'login', username: u, password: p })); };
-        ws.onmessage = function (event) {
-            const data = JSON.parse(event.data);
-            if (data.type === 'nickname_changed') {
-                localStorage.setItem('sam_username', data.new_name);
-                alert("Никнейм успешно изменен!");
-                window.location.href = '/chat';
-            } else if (data.type === 'error_msg') {
-                alert(data.text);
-            }
-        };
-        function saveProfile() {
-            const newNick = document.getElementById('nickname-input').value.trim();
-            if (!newNick) return alert("Ник не может быть пустым!");
-            if (newNick === u) return window.location.href = '/chat';
-            ws.send(JSON.stringify({ action: 'change_nickname', new_nickname: newNick }));
+            document.getElementById('tab-login').classList.toggle('active', !isReg);
+            document.getElementById('tab-reg').classList.toggle('active', isReg);
+
+            const regWrap = document.getElementById('reg-pass-wrap');
+            if (isReg) regWrap.classList.add('expanded');
+            else regWrap.classList.remove('expanded');
+
+            document.getElementById('btn-text').textContent = isReg ? 'Создать аккаунт' : 'Войти в систему';
+            document.getElementById('auth-error').textContent = '';
+
+            // Этап 2: Пружинисто сжимается до нужного размера (капсула больше не вылетает за стенку — родитель её обрезает)
+            setTimeout(() => {
+                // Очень пружинистая анимация (overshoot)
+                slider.style.transition = 'left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                slider.style.left = isReg ? '50%' : '5px';
+                slider.style.width = 'calc(50% - 5px)';
+            }, 200);
         }
 
-        const isTouch = window.matchMedia('(hover: none)').matches;
-        const light = document.getElementById('cursorLight');
-        if (!isTouch) {
-            let mx = window.innerWidth / 2, my = window.innerHeight / 2, lx = mx, ly = my;
-            document.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; light.style.opacity = '1'; });
-            document.addEventListener('mouseleave', () => { light.style.opacity = '0'; });
-            (function loop() {
-                lx += (mx - lx) * 0.18; ly += (my - ly) * 0.18;
-                light.style.transform = `translate3d(${lx}px, ${ly}px, 0)`;
-                requestAnimationFrame(loop);
-            })();
-        } else { light.style.display = 'none'; }
+        // --- 2. ГЛАЗИК (Показать/Скрыть пароль) ---
+        function togglePasswordVisibility(inputId, btnElement) {
+            const input = document.getElementById(inputId);
+            const svgOpen = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+            const svgClosed = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+            
+            if (input.type === "password") {
+                input.type = "text";
+                btnElement.querySelector('svg').innerHTML = svgClosed;
+            } else {
+                input.type = "password";
+                btnElement.querySelector('svg').innerHTML = svgOpen;
+            }
+        }
 
-        document.querySelectorAll('[data-ripple]').forEach(el => {
-            el.addEventListener('click', function (e) {
-                const rect = this.getBoundingClientRect();
-                const size = Math.max(rect.width, rect.height);
-                const ripple = document.createElement('span');
-                ripple.className = 'ripple';
-                ripple.style.width = ripple.style.height = size + 'px';
-                ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
-                ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
-                this.appendChild(ripple);
-                setTimeout(() => ripple.remove(), 600);
+        // --- 3. ФИЗИКА СВЕТА И ПАНЕЛИ ---
+        const authBlock = document.getElementById('auth-block');
+        const bgGlow = document.getElementById('cursor-glow-bg');
+        const innerGlow = document.getElementById('panel-inner-glow');
+        const glassElements = document.querySelectorAll('.glass-element');
+        
+        let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+        let glowX = mouseX, glowY = mouseY;
+        let blockCurrentX = 0, blockCurrentY = 0;
+        let blockTargetX = 0, blockTargetY = 0;
+        
+        let isOverMainPanel = false;
+
+        // Отслеживаем заход курсора на главную панель
+        authBlock.addEventListener('mouseenter', () => {
+            isOverMainPanel = true;
+            bgGlow.style.opacity = '0'; // Выключаем свет на заднем фоне
+            innerGlow.style.opacity = '1'; // Включаем свет внутри панели
+        });
+        authBlock.addEventListener('mouseleave', () => {
+            isOverMainPanel = false;
+            bgGlow.style.opacity = '1'; // Возвращаем свет на фон
+            innerGlow.style.opacity = '0'; // Гасим внутри
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX; mouseY = e.clientY;
+
+            // Логика качания:
+            if (isOverMainPanel) {
+                // Если мы на панели, она плавно выравнивается
+                blockTargetX = 0;
+                blockTargetY = 0;
+            } else {
+                // Если курсор вне панели, она тянется к нему
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                blockTargetX = ((centerY - mouseY) / centerY) * 8; // Наклон чуть мягче
+                blockTargetY = ((mouseX - centerX) / centerX) * 8;
+            }
+        });
+
+        let elementsData = Array.from(glassElements).map(el => ({ el: el, tX: 0, tY: 0, cX: 0, cY: 0 }));
+
+        glassElements.forEach((el, index) => {
+            el.addEventListener('mouseleave', () => {
+                elementsData[index].tX = 0; elementsData[index].tY = 0;
+            });
+            el.addEventListener('mousemove', (e) => {
+                const rect = el.getBoundingClientRect();
+                const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+                
+                el.style.setProperty('--local-x', `${x}px`);
+                el.style.setProperty('--local-y', `${y}px`);
+
+                const dx = x - rect.width / 2; const dy = y - rect.height / 2;
+                elementsData[index].tX = (dx / (rect.width / 2)) * 4;
+                elementsData[index].tY = (dy / (rect.height / 2)) * 4;
             });
         });
+
+        // --- 4. ЛЁГКАЯ ПЛАВНАЯ ДРОЖЬ ПОЛЕЙ ПРИ ВВОДЕ БУКВ ---
+        document.querySelectorAll('.auth-input').forEach((input) => {
+            input.addEventListener('input', () => {
+                input.classList.remove('typing-shake');
+                void input.offsetWidth; // рестарт анимации на каждый символ
+                input.classList.add('typing-shake');
+            });
+        });
+
+        function renderLoop() {
+            glowX += (mouseX - glowX) * 0.15;
+            glowY += (mouseY - glowY) * 0.15;
+            
+            // Двигаем оба фонарика
+            bgGlow.style.left = `${glowX}px`; bgGlow.style.top = `${glowY}px`;
+            
+            // Внутренний фонарик позиционируется относительно панели, вычисляем координаты
+            if (isOverMainPanel) {
+                const rect = authBlock.getBoundingClientRect();
+                innerGlow.style.left = `${glowX - rect.left}px`;
+                innerGlow.style.top = `${glowY - rect.top}px`;
+            }
+
+            // Качание панели
+            blockCurrentX += (blockTargetX - blockCurrentX) * 0.08;
+            blockCurrentY += (blockTargetY - blockCurrentY) * 0.08;
+            authBlock.style.transform = `rotateX(${blockCurrentX}deg) rotateY(${blockCurrentY}deg)`;
+
+            // Сдвиг кнопок
+            elementsData.forEach(data => {
+                data.cX += (data.tX - data.cX) * 0.1;
+                data.cY += (data.tY - data.cY) * 0.1;
+                data.el.style.setProperty('--translate-x', `${data.cX}px`);
+                data.el.style.setProperty('--translate-y', `${data.cY}px`);
+            });
+
+            requestAnimationFrame(renderLoop);
+        }
+        requestAnimationFrame(renderLoop);
+
+        function submitAuth() { console.log("Действие:", currentAuthAction); }
     </script>
 </body>
 </html>
