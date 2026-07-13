@@ -167,26 +167,44 @@
         document.getElementById('nickname-input').value = u;
 
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+        let ws;
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
 
-        ws.onopen = function () { ws.send(JSON.stringify({ action: 'session_login', username: u, token: t })); };
-        ws.onmessage = function (event) {
-            const data = JSON.parse(event.data);
-            if (data.type === 'auth_result' && !data.success) {
-                localStorage.clear();
-                window.location.href = '/';
-            } else if (data.type === 'nickname_changed') {
-                localStorage.setItem('sam_username', data.new_name);
-                alert("Никнейм успешно изменен!");
-                window.location.href = '/chat';
-            } else if (data.type === 'error_msg') {
-                alert(data.text);
-            }
-        };
+        function connectWS() {
+            ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+            ws.onopen = function () {
+                reconnectAttempts = 0;
+                ws.send(JSON.stringify({ action: 'session_login', username: u, token: t }));
+            };
+            ws.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                if (data.type === 'auth_result' && !data.success) {
+                    localStorage.clear();
+                    window.location.href = '/';
+                } else if (data.type === 'nickname_changed') {
+                    localStorage.setItem('sam_username', data.new_name);
+                    alert("Никнейм успешно изменен!");
+                    window.location.href = '/chat';
+                } else if (data.type === 'error_msg') {
+                    alert(data.text);
+                }
+            };
+            ws.onclose = function () {
+                reconnectAttempts++;
+                const delay = Math.min(1000 * reconnectAttempts, 8000);
+                clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(connectWS, delay);
+            };
+            ws.onerror = function () { ws.close(); };
+        }
+        connectWS();
+
         function saveProfile() {
             const newNick = document.getElementById('nickname-input').value.trim();
             if (!newNick) return alert("Ник не может быть пустым!");
             if (newNick === u) return window.location.href = '/chat';
+            if (ws.readyState !== WebSocket.OPEN) return alert("Нет связи с сервером, подождите переподключения и попробуйте снова.");
             ws.send(JSON.stringify({ action: 'change_nickname', new_nickname: newNick }));
         }
 
