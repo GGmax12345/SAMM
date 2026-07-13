@@ -4,7 +4,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <link rel="manifest" href="/uploads/manifest.json">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SAM Messenger</title>
     <style>
         * { 
@@ -46,24 +46,25 @@
         }
         #side-menu.open { left: 0; }
         .menu-profile-header { padding: 30px 20px; background: rgba(0, 140, 255, 0.08); border-bottom: 1px solid rgba(163, 191, 255, 0.08); }
-        .menu-avatar { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #00a0ff 0%, #0060d0 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; box-shadow: 0 0 20px rgba(0, 160, 255, 0.4); background-size: cover; background-position: center; }
-        .menu-name { font-weight: 600; color: #fff; font-size: 17px; text-shadow: 0 0 8px rgba(163, 191, 255, 0.25); }
+        .menu-avatar { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #00a0ff 0%, #0060d0 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; box-shadow: 0 0 14px rgba(0, 160, 255, 0.25); background-size: cover; background-position: center; }
+        .menu-name { font-weight: 600; color: #fff; font-size: 17px; text-shadow: 0 0 6px rgba(163, 191, 255, 0.15); }
         .menu-status { font-size: 13px; color: #6e89b5; margin-top: 4px; font-weight: 500;}
         .menu-items { padding: 10px 0; flex-grow: 1; overflow-y: auto; }
         .menu-item { padding: 16px 20px; cursor: pointer; display: flex; align-items: center; gap: 15px; color: #dbe5ff; font-weight: 500; transition: background 0.2s ease; }
         .menu-item:hover { background: rgba(0, 150, 255, 0.1); }
         .menu-item:active { background: rgba(0, 150, 255, 0.18); }
         .menu-icon { font-size: 20px; width: 24px; text-align: center; }
-
+ 
         .sidebar { width: 340px; background: rgba(10, 16, 26, 0.55); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border-right: 1px solid rgba(163, 191, 255, 0.06); display: flex; flex-direction: column; flex-shrink: 0; transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
         .sidebar-header { 
             padding: 14px 16px; display: flex; align-items: center; gap: 12px; background: rgba(10, 16, 26, 0.4); 
             padding-top: calc(14px + env(safe-area-inset-top));
             border-bottom: 1px solid rgba(163, 191, 255, 0.06);
         }
-        .hamburger { font-size: 22px; color: #6e89b5; cursor: pointer; user-select: none; padding: 6px; transition: color 0.2s; }
+        .hamburger { width: 22px; height: 22px; color: #6e89b5; cursor: pointer; user-select: none; padding: 6px; transition: color 0.2s; }
+        .hamburger svg { width: 100%; height: 100%; }
         .hamburger:hover { color: #b0ccff; filter: drop-shadow(0 0 6px rgba(176, 204, 255, 0.5)); }
-        .search-bar { flex-grow: 1; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.06); border-radius: 22px; padding: 10px 16px; color: #dbe5ff; outline: none; font-size: 15px; transition: background 0.2s, border 0.2s; }
+        .search-bar { flex-grow: 1; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.06); border-radius: 22px; padding: 10px 16px; color: #dbe5ff; outline: none; font-size: 16px; transition: background 0.2s, border 0.2s; }
         .search-bar::placeholder { color: #435368; }
         .search-bar:focus { background: rgba(8, 12, 22, 0.7); border-color: rgba(0, 180, 255, 0.35); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
         
@@ -76,7 +77,7 @@
         .room-item.active { background: rgba(0, 150, 255, 0.14); box-shadow: inset 3px 0 0 rgba(0, 180, 255, 0.6); }
         
         .avatar-wrapper { position: relative; display: inline-block; flex-shrink: 0; }
-        .avatar { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #1c7fd6 0%, #0a4f96 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; text-transform: uppercase; flex-shrink: 0; transition: transform 0.2s ease; box-shadow: 0 0 12px rgba(0, 140, 255, 0.25); background-size: cover; background-position: center; }
+        .avatar { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #1c7fd6 0%, #0a4f96 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; text-transform: uppercase; flex-shrink: 0; transition: transform 0.2s ease; box-shadow: 0 0 8px rgba(0, 140, 255, 0.15); background-size: cover; background-position: center; }
         .online-dot { 
             position: absolute; bottom: 1px; right: 1px; width: 13px; height: 13px; 
             background-color: #4caf50; border: 2.5px solid #0c1526; border-radius: 50%; 
@@ -84,7 +85,7 @@
             display: none; z-index: 5;
         }
         .room-item.online .online-dot { display: block; }
-
+ 
         .room-info { flex-grow: 1; min-width: 0; }
         .room-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .room-name { font-weight: 600; color: #fff; font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -123,7 +124,7 @@
         }
         .msg-row.my-row .msg-block { background: rgba(0, 110, 220, 0.28); border: 1px solid rgba(0, 180, 255, 0.2); border-radius: 16px 16px 4px 16px; box-shadow: 0 4px 14px rgba(0, 110, 220, 0.2); }
         .msg-block.system-msg { background: rgba(19, 28, 38, 0.85) !important; border: 1px dashed #ff7b72; color: #8b949e; font-style: italic; align-self: center; border-radius: 10px; }
-        .msg-author { font-size: 13px; color: #5ab0ff; font-weight: 600; margin-bottom: 4px; text-shadow: 0 0 8px rgba(0, 160, 255, 0.3); }
+        .msg-author { font-size: 13px; color: #5ab0ff; font-weight: 600; margin-bottom: 4px; text-shadow: 0 0 5px rgba(0, 160, 255, 0.2); }
         .msg-row.my-row .msg-author { display: none; }
         .msg-body { font-size: 15px; line-height: 1.45; word-break: break-word; padding-right: 40px; padding-bottom: 4px; }
         .msg-body img { max-width: 100%; max-height: 280px; border-radius: 10px; margin-top: 6px; display: block; }
@@ -146,19 +147,63 @@
         .admin-actions { display: none; margin-top: 6px; font-size: 11.5px; gap: 12px; border-top: 1px solid rgba(36, 48, 63, 0.6); padding-top: 6px; }
         .admin-active .admin-actions { display: flex; }
         .adm-btn { color: #ff6b6b; cursor: pointer; font-weight: 500; }
-
+ 
         .input-panel { 
-            padding: 10px 16px; display: flex; gap: 12px; 
+            padding: 10px 16px; display: flex; gap: 10px; 
             background: rgba(10, 16, 26, 0.7); align-items: center;
             backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
             padding-bottom: calc(10px + env(safe-area-inset-bottom));
             border-top: 1px solid rgba(163, 191, 255, 0.06);
-            z-index: 10;
+            z-index: 10; position: relative;
         }
-        .attach-btn { color: #6e89b5; font-size: 24px; cursor: pointer; user-select: none; padding: 4px; transition: color 0.2s; }
+        .attach-btn { color: #6e89b5; font-size: 24px; cursor: pointer; user-select: none; padding: 4px; transition: color 0.2s, transform 0.15s; background: none; border: none; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .attach-btn svg { width: 22px; height: 22px; }
+        .attach-btn:active { transform: scale(0.88); }
+        #mic-btn.recording { color: #ff5757; animation: micPulse 1s ease-in-out infinite; }
+        @keyframes micPulse { 0%, 100% { filter: drop-shadow(0 0 0 rgba(255,87,87,0)); } 50% { filter: drop-shadow(0 0 8px rgba(255,87,87,0.7)); } }
+ 
+        /* --- ПАНЕЛЬ ЭМОДЗИ --- */
+        .emoji-picker {
+            position: absolute; bottom: 68px; left: 12px; right: 12px; max-width: 360px;
+            background: rgba(16, 24, 38, 0.75); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(163, 191, 255, 0.10); border-radius: 16px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+            padding: 10px; display: none; z-index: 30;
+            max-height: 240px; overflow-y: auto;
+        }
+        .emoji-picker.show { display: block; animation: emojiIn 0.18s ease-out; }
+        @keyframes emojiIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+        .emoji-grid span { font-size: 22px; text-align: center; cursor: pointer; border-radius: 8px; padding: 4px 0; transition: background 0.15s, transform 0.1s; }
+        .emoji-grid span:hover { background: rgba(255,255,255,0.08); transform: scale(1.15); }
+ 
+        /* --- ЗАПИСЬ ГОЛОСОВОГО --- */
+        .voice-recorder-bar {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 62px;
+            background: rgba(16, 24, 38, 0.85); backdrop-filter: blur(20px);
+            display: none; align-items: center; gap: 10px; padding: 0 16px;
+            border-top: 1px solid rgba(163, 191, 255, 0.08); z-index: 25;
+        }
+        .voice-recorder-bar.show { display: flex; }
+        .rec-dot { width: 12px; height: 12px; border-radius: 50%; background: #ff5757; animation: micPulse 1s ease-in-out infinite; flex-shrink: 0; }
+        #rec-timer { color: #fff; font-weight: 600; font-size: 15px; }
+        .rec-hint { color: #6e89b5; font-size: 12.5px; margin-left: auto; }
+ 
+        /* --- ВИДЕО-КРУЖОК --- */
+        .video-note-preview, .video-note-bubble {
+            width: 200px; height: 200px; border-radius: 50%; object-fit: cover;
+            background: #000; display: block; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+        }
+        .video-note-bubble { width: 180px; height: 180px; cursor: pointer; }
+        #video-note-record-btn {
+            width: 60px; height: 60px; border-radius: 50%; border: 3px solid #fff;
+            background: #ff5757; cursor: pointer; margin: 18px auto 0; display: block;
+            transition: transform 0.15s, border-radius 0.15s;
+        }
+        #video-note-record-btn.recording { border-radius: 14px; transform: scale(0.85); }
         .attach-btn:hover { color: #b0ccff; filter: drop-shadow(0 0 6px rgba(176, 204, 255, 0.5)); }
         #file-input { display: none; }
-        #message-input { flex-grow: 1; padding: 11px 16px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.07); border-radius: 24px; color: #dbe5ff; outline: none; font-size: 15px; transition: border 0.2s, box-shadow 0.2s; }
+        #message-input { flex-grow: 1; padding: 11px 16px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.07); border-radius: 24px; color: #dbe5ff; outline: none; font-size: 16px; transition: border 0.2s, box-shadow 0.2s; }
         #message-input::placeholder { color: #435368; }
         #message-input:focus { border-color: rgba(0, 180, 255, 0.4); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
         #send-btn { color: #5ab0ff; font-size: 15px; font-weight: bold; cursor: pointer; user-select: none; padding: 8px; transition: color 0.2s, transform 0.1s; text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 0 0 10px rgba(0, 160, 255, 0.4); }
@@ -180,11 +225,11 @@
         }
         .modal-overlay.show { opacity: 1; }
         .modal-overlay.show .modal-box { transform: scale(1); }
-        .modal-box h3 { margin-top: 0; color: #fff; font-size: 19px; font-weight: 600; margin-bottom: 16px; text-shadow: 0 0 8px rgba(163, 191, 255, 0.25); }
+        .modal-box h3 { margin-top: 0; color: #fff; font-size: 19px; font-weight: 600; margin-bottom: 16px; text-shadow: 0 0 6px rgba(163, 191, 255, 0.15); }
         .modal-list { max-height: 260px; overflow-y: auto; margin-bottom: 16px; }
         .modal-list-item { padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(163, 191, 255, 0.06); color: #dbe5ff; display: flex; align-items: center; gap: 12px; transition: background 0.15s; border-radius: 8px; }
         .modal-list-item:hover { background: rgba(0, 150, 255, 0.08); }
-        .modal-input { width: 100%; padding: 12px 14px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.08); color: #dbe5ff; border-radius: 10px; margin-bottom: 20px; outline: none; font-size: 15px; transition: border 0.2s, box-shadow 0.2s; }
+        .modal-input { width: 100%; padding: 12px 14px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.08); color: #dbe5ff; border-radius: 10px; margin-bottom: 20px; outline: none; font-size: 16px; transition: border 0.2s, box-shadow 0.2s; }
         .modal-input:focus { border-color: rgba(0, 180, 255, 0.45); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
         .modal-btns { display: flex; justify-content: flex-end; gap: 10px; }
         
@@ -196,14 +241,16 @@
         .btn-danger:hover { background: rgba(229, 57, 53, 0.3); }
         .btn-success { background: rgba(67, 160, 71, 0.18); border: 1px solid rgba(100, 220, 100, 0.35); color: #b6f0b8; cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; }
         .btn-success:hover { background: rgba(67, 160, 71, 0.3); }
-
+ 
         #empty-chat-msg { text-align: center; color: #6e89b5; background: rgba(10, 16, 26, 0.6); backdrop-filter: blur(20px); padding: 14px 24px; border-radius: 20px; margin: auto; font-size: 14.5px; max-width: 85%; line-height: 1.4; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid rgba(163, 191, 255, 0.06); }
         .header-action-btn { background: transparent; border: none; color: #5ab0ff; font-size: 20px; cursor: pointer; padding: 8px; border-radius: 50%; transition: background 0.2s, color 0.2s; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
+        .header-action-btn svg { width: 20px; height: 20px; }
+        .back-btn svg { width: 20px; height: 20px; }
         .header-action-btn:hover { background: rgba(0, 150, 255, 0.12); color: #fff; }
         .pulse-btn { animation: phonePulse 1.2s infinite alternate; box-shadow: 0 0 15px rgba(67, 160, 71, 0.4); }
         @keyframes phonePulse { from { transform: scale(1); } to { transform: scale(1.08); } }
         #localAudio, #remoteAudio { display: none; }
-
+ 
         .toast-notification {
             position: fixed;
             top: calc(20px + env(safe-area-inset-top));
@@ -257,7 +304,7 @@
             color: #a3cfff;
             word-break: break-word;
         }
-
+ 
         @media (max-width: 768px) {
             .sidebar {
                 width: 100%; position: absolute; left: 0; top: 0; height: 100%; z-index: 5;
@@ -283,7 +330,7 @@
             .room-item { padding: 12px 14px; }
             .menu-item { padding: 18px 20px; }
         }
-
+ 
         @media (max-width: 480px) {
             .toast-notification {
                 width: calc(100% - 32px);
@@ -315,7 +362,7 @@
                 <div class="menu-item" onclick="localStorage.clear(); window.location.href='/'"><span class="menu-icon">🚪</span> Выйти</div>
             </div>
         </div>
-
+ 
         <div id="profile-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Настройки профиля</h3>
@@ -323,13 +370,15 @@
                 <input type="text" id="profile-nickname" class="modal-input" placeholder="Введите новый ник...">
                 <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">URL-ссылка на аватарку:</label>
                 <input type="text" id="profile-avatar-url" class="modal-input" placeholder="https://example.com/photo.jpg">
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">О себе (статус):</label>
+                <input type="text" id="profile-bio" class="modal-input" placeholder="Например: на связи ✌️" maxlength="70">
                 <div class="modal-btns">
                     <button class="btn-cancel" onclick="closeModals()">Отмена</button>
                     <button class="btn-primary" onclick="confirmUpdateProfile()">Сохранить</button>
                 </div>
             </div>
         </div>
-
+ 
         <div id="group-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Создать группу</h3>
@@ -340,7 +389,7 @@
                 </div>
             </div>
         </div>
-
+ 
         <div id="contacts-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Выберите контакт</h3>
@@ -350,7 +399,7 @@
                 </div>
             </div>
         </div>
-
+ 
         <div id="add-member-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Добавить в группу</h3>
@@ -360,7 +409,7 @@
                 </div>
             </div>
         </div>
-
+ 
         <div id="incoming-call-modal" class="modal-overlay">
             <div class="modal-box" style="text-align: center;">
                 <h3 style="margin-bottom: 5px;">Входящий вызов</h3>
@@ -371,7 +420,7 @@
                 </div>
             </div>
         </div>
-
+ 
         <div id="call-status-modal" class="modal-overlay">
             <div class="modal-box" style="text-align: center;">
                 <h3 id="call-status-text">Установка связи...</h3>
@@ -381,7 +430,20 @@
                 </div>
             </div>
         </div>
-
+ 
+        <div id="video-note-modal" class="modal-overlay">
+            <div class="modal-box" style="text-align: center;">
+                <h3>Видео-сообщение</h3>
+                <video id="video-note-preview" class="video-note-preview" autoplay muted playsinline></video>
+                <button id="video-note-record-btn" onclick="toggleVideoNoteRecording()"></button>
+                <div id="video-note-hint" style="color:#6e89b5; font-size:12.5px; margin-top:10px;">Нажмите, чтобы начать запись (до 60 сек)</div>
+                <div class="modal-btns" style="justify-content: center; margin-top: 14px;">
+                    <button class="btn-cancel" onclick="closeVideoNoteModal()">Отмена</button>
+                    <button class="btn-primary" id="video-note-send-btn" style="display:none;" onclick="sendVideoNote()">Отправить</button>
+                </div>
+            </div>
+        </div>
+ 
         <div id="gallery-modal" class="modal-overlay">
             <div class="modal-box" style="max-width: 450px; width: 90%;">
                 <h3>Медиа файлы чата</h3>
@@ -391,14 +453,16 @@
                 </div>
             </div>
         </div>
-
+ 
         <audio id="localAudio" autoplay muted></audio>
         <audio id="remoteAudio" autoplay></audio>
-
+ 
         <div class="app-layout" id="layout-wrapper">
             <div class="sidebar">
                 <div class="sidebar-header">
-                    <div class="hamburger" onclick="toggleMenu()">☰</div>
+                    <div class="hamburger" onclick="toggleMenu()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+                    </div>
                     <input type="text" class="search-bar" placeholder="Поиск">
                 </div>
                 <div class="room-list" id="sidebar-room-list">
@@ -409,11 +473,17 @@
             
             <div class="chat-area">
                 <div class="chat-header" id="main-chat-header" style="display: none;">
-                    <div class="back-btn" onclick="backToRoomList()">⬅</div>
+                    <div class="back-btn" onclick="backToRoomList()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </div>
                     <div class="chat-title" id="chat-title-top">Название чата</div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <button id="gallery-btn" class="header-action-btn" onclick="openChatGallery()" title="Медиа чата">🖼️</button>
-                        <button id="call-user-btn" class="header-action-btn" onclick="startCallWithActiveUser()" title="Позвонить">📞</button>
+                        <button id="gallery-btn" class="header-action-btn" onclick="openChatGallery()" title="Медиа чата">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                        </button>
+                        <button id="call-user-btn" class="header-action-btn" onclick="startCallWithActiveUser()" title="Позвонить">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        </button>
                         <button id="add-member-btn" onclick="openAddMemberModal()" style="display: none; background: #2481cc; color: white; border: none; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 600;">+ Участник</button>
                     </div>
                 </div>
@@ -421,16 +491,38 @@
                     <div id="empty-chat-msg">Выберите чат или создайте новый для начала общения</div>
                 </div>
                 <div class="input-panel" id="main-input-panel" style="display: none;">
-                    <label class="attach-btn">
-                        📎<input type="file" id="file-input" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" onchange="sendFile()">
+                    <label class="attach-btn" title="Прикрепить файл">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                        <input type="file" id="file-input" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" onchange="sendFile()">
                     </label>
+                    <button class="attach-btn" id="emoji-btn" type="button" title="Эмодзи" onclick="toggleEmojiPicker()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                    </button>
                     <input type="text" id="message-input" maxlength="1000" placeholder="Напишите сообщение..." onkeypress="if(event.key==='Enter') sendTextMessage()">
+                    <button class="attach-btn" id="video-note-btn" type="button" title="Видео-кружок" onclick="openVideoNoteModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                    </button>
+                    <button class="attach-btn" id="mic-btn" type="button" title="Зажмите для записи голосового">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                    </button>
                     <div id="send-btn" onclick="sendTextMessage()">ОТПРАВИТЬ</div>
+                </div>
+ 
+                <!-- ПАНЕЛЬ ЭМОДЗИ -->
+                <div id="emoji-picker" class="emoji-picker">
+                    <div class="emoji-grid" id="emoji-grid"></div>
+                </div>
+ 
+                <!-- ИНДИКАТОР ЗАПИСИ ГОЛОСОВОГО -->
+                <div id="voice-recorder-bar" class="voice-recorder-bar">
+                    <div class="rec-dot"></div>
+                    <span id="rec-timer">0:00</span>
+                    <span class="rec-hint">Отпустите для отправки, свайп в сторону — отмена</span>
                 </div>
             </div>
         </div>
     </div>
-
+ 
     <div id="custom-toast" class="toast-notification">
         <div class="toast-header">
             <span id="toast-title" class="toast-title">Новое сообщение</span>
@@ -438,19 +530,23 @@
         </div>
         <div id="toast-body" class="toast-body">Привет! Как дела?</div>
     </div>
-
+ 
     <script>
         const u = localStorage.getItem('sam_username');
-
+        const t = localStorage.getItem('sam_token');
+        if (!u || !t) { window.location.href = '/'; }
+ 
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+        let ws;
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
         
         let myUsername = u;
         let myRole = 'user';
         let currentRoom = null;
         let currentChatPartner = null; 
         let renderedRooms = new Set();
-
+ 
         let localStream = null;
         let peerConnection = null;
         let callTarget = null;
@@ -461,22 +557,23 @@
         
         // --- КЛИЕНТСКОЕ ШИФРОВАНИЕ (E2EE) ---
         function getChatKey(roomName) {
+            // Генерируем уникальный детерминированный ключ для AES на основе хэша комнаты
             return CryptoJS.SHA256(roomName + "_sam_secure_salt_e2ee").toString();
         }
-
+ 
         function encryptData(text, roomName) {
             if (!text) return "";
             const key = getChatKey(roomName);
             return CryptoJS.AES.encrypt(text, key).toString();
         }
-
+ 
         function decryptData(ciphertext, roomName) {
             if (!ciphertext) return "";
             try {
                 const key = getChatKey(roomName);
                 const bytes = CryptoJS.AES.decrypt(ciphertext, key);
                 const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
-                return decryptedText || ciphertext; 
+                return decryptedText || ciphertext; // Возвращаем оригинал, если сообщение было отправлено до включения шифрования
             } catch (e) {
                 return ciphertext; 
             }
@@ -493,7 +590,7 @@
                 }, { once: true });
             }
         }
-
+ 
         function showNotification(title, body) {
             if ("Notification" in window && Notification.permission === "granted") {
                 new Notification(title, {
@@ -502,39 +599,39 @@
                 });
             }
         }
-
+ 
         initNotifications();
-
+ 
         // --- ЛОГИКА ВНУТРЕННИХ ПЛАВНЫХ ТОАСТОВ ---
         let toastTimer = null;
         const toastEl = document.getElementById('custom-toast');
-
+ 
         function triggerToast(title, body) {
             document.getElementById('toast-title').textContent = title;
             document.getElementById('toast-body').textContent = body;
             toastEl.classList.add('show');
             startToastTimer();
         }
-
+ 
         function hideToast() {
             toastEl.classList.remove('show');
             clearToastTimer();
         }
-
+ 
         function startToastTimer() {
             clearToastTimer();
             toastTimer = setTimeout(() => {
                 hideToast();
             }, 4500); 
         }
-
+ 
         function clearToastTimer() {
             if (toastTimer) {
                 clearTimeout(toastTimer);
                 toastTimer = null;
             }
         }
-
+ 
         toastEl.addEventListener('mouseenter', () => clearToastTimer());
         toastEl.addEventListener('mouseleave', () => {
             if (toastEl.classList.contains('show')) startToastTimer();
@@ -543,19 +640,30 @@
         toastEl.addEventListener('touchend', () => {
             if (toastEl.classList.contains('show')) startToastTimer();
         }, { passive: true });
-
+ 
         (function() {
             const glow = document.getElementById('cursor-glow-bg');
             let mx = window.innerWidth / 2, my = window.innerHeight / 2, gx = mx, gy = my;
+            let vx = 0, vy = 0;
             document.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; });
             function loop() {
-                gx += (mx - gx) * 0.15; gy += (my - gy) * 0.15;
+                const dx = mx - gx, dy = my - gy;
+                gx += dx * 0.15; gy += dy * 0.15;
+                vx += (dx - vx) * 0.25; vy += (dy - vy) * 0.25;
+ 
+                const speed = Math.min(Math.sqrt(vx * vx + vy * vy), 60);
+                const angle = Math.atan2(vy, vx) * 180 / Math.PI;
+                // "Шарик" тянется вдоль движения и сужается поперёк — чем резче рывок, тем сильнее эффект
+                const stretch = 1 + speed / 40;      // растяжение по direction движения
+                const squeeze = Math.max(1 - speed / 140, 0.55); // сужение поперёк (к курсору)
+ 
                 glow.style.left = gx + 'px'; glow.style.top = gy + 'px';
+                glow.style.transform = `translate(-50%, -50%) rotate(${angle}deg) scale(${stretch}, ${squeeze})`;
                 requestAnimationFrame(loop);
             }
             requestAnimationFrame(loop);
         })();
-
+ 
         function escapeHTML(str) {
             if (!str) return '';
             return str.toString()
@@ -565,7 +673,7 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
         }
-
+ 
         function applyAvatarStyle(el, name, avatarUrl) {
             if (avatarUrl && avatarUrl.trim() !== '') {
                 el.style.backgroundImage = `url('${avatarUrl}')`;
@@ -575,30 +683,47 @@
                 el.textContent = name ? name.charAt(0).toUpperCase() : 'U';
             }
         }
+ 
+        function connectWS() {
+            ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+            ws.onopen = handleWSOpen;
+            ws.onclose = handleWSClose;
+            ws.onmessage = handleWSMessage;
+            ws.onerror = function() { ws.close(); };
+        }
+        connectWS();
 
-        ws.onopen = function() {
-            ws.send(JSON.stringify({ action: 'login', username: u }));
+        function handleWSOpen() {
+            reconnectAttempts = 0;
+            ws.send(JSON.stringify({ action: 'session_login', username: u, token: t }));
+        }
+ 
+        function handleWSClose() {
+            triggerToast('Система', 'Соединение с сервером прервано, переподключаюсь...');
+            reconnectAttempts++;
+            const delay = Math.min(1000 * reconnectAttempts, 8000);
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connectWS, delay);
         };
-
-        ws.onclose = function() {
-            triggerToast('Система', 'Соединение с сервером прервано. Пожалуйста, обновите страницу.');
-        };
-
-        ws.onmessage = async function(event) {
+ 
+        async function handleWSMessage(event) {
             try {
                 const data = JSON.parse(event.data);
-
+ 
                 if (data.type === 'auth_result') {
                     if (data.success) {
                         myUsername = data.username;
                         myRole = data.role;
                         document.getElementById('menu-username').textContent = myUsername;
+                        const cachedBio = localStorage.getItem('sam_bio');
+                        if (cachedBio) document.querySelector('.menu-status').textContent = cachedBio;
                         
                         const cachedAvatar = data.avatar || localStorage.getItem('sam_avatar') || '';
                         applyAvatarStyle(document.getElementById('menu-avatar-letter'), myUsername, cachedAvatar);
                         
                         if (myRole === 'admin') document.getElementById('messages').classList.add('admin-active');
                     } else {
+                        localStorage.clear();
                         window.location.href = '/';
                     }
                 }
@@ -609,7 +734,7 @@
                         const targetUser = parts[1] === myUsername ? parts[2] : parts[1];
                         addRoomToSidebar(pr, true, targetUser);
                     });
-
+ 
                     const lastRoomId = localStorage.getItem('sam_last_room_id');
                     const lastRoomTitle = localStorage.getItem('sam_last_room_title');
                     if (lastRoomId && lastRoomTitle) {
@@ -647,7 +772,7 @@
                         targetTitle = parts[1] === myUsername ? parts[2] : parts[1];
                     }
                     addRoomToSidebar(data.room, isPrivate, targetTitle);
-
+ 
                     const previewEl = document.getElementById('p-' + data.room);
                     const timeEl = document.getElementById('t-' + data.room);
                     
@@ -659,21 +784,21 @@
                     } else {
                         contentText = '[Системное сообщение]';
                     }
-
+ 
                     if (previewEl) {
                         previewEl.textContent = `${data.username}: ${contentText}`;
                         if(timeEl) timeEl.textContent = data.time;
                     }
-
+ 
                     if (data.room === currentRoom) {
                         renderMessage(data, data.history);
                     }
-
+ 
                     if (document.hidden && data.username !== myUsername) {
                         let chatName = isPrivate ? `ЛС от ${data.username}` : `Группа: ${targetTitle}`;
                         showNotification(chatName, `${data.username}: ${contentText}`);
                     }
-
+ 
                     if (data.username !== myUsername && data.room !== currentRoom) {
                         let chatName = isPrivate ? `ЛС от ${data.username}` : `Группа: ${targetTitle}`;
                         triggerToast(chatName, `${data.username}: ${contentText}`);
@@ -759,27 +884,27 @@
                 console.error("Ошибка обработки WebSocket сообщения:", err);
             }
         };
-
+ 
         document.querySelector('.search-bar').addEventListener('input', function(e) {
             const query = e.target.value.trim();
             const chatsCont = document.getElementById('chats-container');
             const searchCont = document.getElementById('search-container');
-
+ 
             if (query === '') {
                 searchCont.style.display = 'none';
                 searchCont.innerHTML = '';
                 chatsCont.style.display = 'block';
                 return;
             }
-
+ 
             chatsCont.style.display = 'none';
             searchCont.style.display = 'block';
-
+ 
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ action: 'search', query: query }));
             }
         });
-
+ 
         function handleSearchResults(results) {
             const searchCont = document.getElementById('search-container');
             searchCont.innerHTML = '';
@@ -788,7 +913,7 @@
                 searchCont.innerHTML = '<div style="padding: 16px; color: #6e89b5; text-align: center; font-size: 14.5px;">Ничего не найдено</div>';
                 return;
             }
-
+ 
             results.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'room-item';
@@ -796,13 +921,13 @@
                 const isUser = item.type === 'user';
                 const bgStr = isUser ? 'background:#b84343' : '';
                 const typeLabel = isUser ? 'Пользователь' : 'Группа';
-
+ 
                 div.setAttribute('data-search-item', 'true');
                 div.setAttribute('data-item-type', item.type);
                 div.setAttribute('data-room-title', item.name);
                 div.setAttribute('data-room-id', item.name);
                 if (isUser) div.setAttribute('data-peer-username', item.name);
-
+ 
                 div.innerHTML = `
                     <div class="avatar-wrapper">
                         <div class="avatar" style="${bgStr}">${escapeHTML(item.name.charAt(0).toUpperCase())}</div>
@@ -816,22 +941,22 @@
                 searchCont.appendChild(div);
             });
         }
-
+ 
         document.getElementById('sidebar-room-list').addEventListener('click', function(e) {
             const item = e.target.closest('.room-item');
             if (!item) return;
-
+ 
             const roomId = item.getAttribute('data-room-id');
             const roomTitle = item.getAttribute('data-room-title');
             const isSearchItem = item.getAttribute('data-search-item') === 'true';
             const itemType = item.getAttribute('data-item-type');
-
+ 
             if (isSearchItem) {
                 document.getElementById('search-container').style.display = 'none';
                 document.getElementById('search-container').innerHTML = '';
                 document.getElementById('chats-container').style.display = 'block';
                 document.querySelector('.search-bar').value = '';
-
+ 
                 if (itemType === 'user') {
                     startPrivateChat(roomTitle);
                 } else {
@@ -842,7 +967,7 @@
                 changeRoom(roomId, roomTitle);
             }
         });
-
+ 
         function toggleMenu() {
             const menu = document.getElementById('side-menu');
             const overlay = document.getElementById('side-menu-overlay');
@@ -858,38 +983,42 @@
                 menu.classList.remove('open');
             }
         }
-
+ 
         function openModal(id) {
             const modal = document.getElementById(id);
             modal.style.display = 'flex';
             setTimeout(() => modal.classList.add('show'), 10);
         }
-
+ 
         function closeModals() {
             document.querySelectorAll('.modal-overlay').forEach(modal => {
                 modal.classList.remove('show');
                 setTimeout(() => modal.style.display = 'none', 200);
             });
         }
-
+ 
         function openProfileModal() {
             toggleMenu();
             document.getElementById('profile-nickname').value = myUsername || '';
             document.getElementById('profile-avatar-url').value = localStorage.getItem('sam_avatar') || '';
+            document.getElementById('profile-bio').value = localStorage.getItem('sam_bio') || '';
             openModal('profile-modal');
         }
-
+ 
         function confirmUpdateProfile() {
             const newName = document.getElementById('profile-nickname').value.trim();
             const newAvatar = document.getElementById('profile-avatar-url').value.trim();
+            const newBio = document.getElementById('profile-bio').value.trim();
             
             if(!newName) return alert("Никнейм не может быть пустым!");
-
+ 
             localStorage.setItem('sam_username', newName);
             localStorage.setItem('sam_avatar', newAvatar);
+            localStorage.setItem('sam_bio', newBio);
             
             myUsername = newName;
             document.getElementById('menu-username').textContent = myUsername;
+            document.querySelector('.menu-status').textContent = newBio || 'SAM Личный кабинет';
             applyAvatarStyle(document.getElementById('menu-avatar-letter'), myUsername, newAvatar);
             
             if(ws && ws.readyState === WebSocket.OPEN) {
@@ -901,8 +1030,7 @@
             }
             closeModals();
         }
-
-        // Остальные функции без изменений
+ 
         function openCreateGroupModal() { toggleMenu(); openModal('group-modal'); }
         
         function confirmCreateGroup() {
@@ -913,40 +1041,40 @@
                 closeModals();
             }
         }
-
+ 
         function openContactsModal() {
             toggleMenu();
             ws.send(JSON.stringify({ action: 'get_users' }));
             openModal('contacts-modal');
         }
-
+ 
         function openAddMemberModal() {
             ws.send(JSON.stringify({ action: 'get_users' }));
             openModal('add-member-modal');
         }
-
+ 
         function startPrivateChat(targetUser) {
             const users = [myUsername, targetUser].sort();
             const roomId = `PRIVATE|${users[0]}|${users[1]}`;
             addRoomToSidebar(roomId, true, targetUser);
             changeRoom(roomId, targetUser);
         }
-
+ 
         function addRoomToSidebar(roomId, isPrivate, customTitle = null) {
             if(renderedRooms.has(roomId)) return;
             renderedRooms.add(roomId);
-
+ 
             const title = customTitle || roomId;
             const bgStr = isPrivate ? 'background:#b84343' : '';
             const div = document.createElement('div');
             div.className = 'room-item';
             div.id = 'room-' + roomId;
-
+ 
             div.setAttribute('data-room-id', roomId);
             div.setAttribute('data-room-title', title);
             div.setAttribute('data-search-item', 'false');
             if (isPrivate) div.setAttribute('data-peer-username', title);
-
+ 
             div.innerHTML = `
                 <div class="avatar-wrapper">
                     <div class="avatar" style="${bgStr}">${escapeHTML(title.charAt(0).toUpperCase())}</div>
@@ -959,7 +1087,7 @@
             `;
             document.getElementById('chats-container').prepend(div);
         }
-
+ 
         function changeRoom(roomId, titleText) {
             if (currentRoom === roomId) {
                 document.getElementById('layout-wrapper').classList.add('chat-open');
@@ -970,10 +1098,10 @@
                 if(oldEl) oldEl.classList.remove('active');
             }
             currentRoom = roomId;
-
+ 
             localStorage.setItem('sam_last_room_id', roomId);
             localStorage.setItem('sam_last_room_title', titleText);
-
+ 
             const targetRoomEl = document.getElementById('room-' + currentRoom);
             if(targetRoomEl) targetRoomEl.classList.add('active');
             
@@ -982,7 +1110,7 @@
             document.getElementById('chat-title-top').textContent = titleText;
             
             document.getElementById('messages').innerHTML = '<div style="text-align: center; color: #6e89b5; padding: 20px; font-size: 14.5px;">Загрузка сообщений...</div>';
-
+ 
             if (!roomId.startsWith('PRIVATE|')) {
                 document.getElementById('add-member-btn').style.display = 'block';
                 document.getElementById('call-user-btn').style.display = 'none'; 
@@ -996,34 +1124,36 @@
             document.getElementById('layout-wrapper').classList.add('chat-open');
             ws.send(JSON.stringify({ action: 'join_room', room: roomId }));
         }
-
+ 
         function backToRoomList() {
             document.getElementById('layout-wrapper').classList.remove('chat-open');
         }
-
+ 
         function sendTextMessage() {
             const input = document.getElementById('message-input');
             const text = input.value.trim();
             if (text && currentRoom) {
+                // Шифруем текст перед отправкой
                 const encryptedText = encryptData(text, currentRoom);
                 ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedText, msg_type: 'text' }));
                 input.value = '';
             }
         }
-
+ 
         function sendFile() {
             const fileInput = document.getElementById('file-input');
             const file = fileInput.files[0];
             if (!file || !currentRoom) return;
-
+ 
             const formData = new FormData();
             formData.append('file', file);
-
+ 
             fetch('/upload', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
                     const contentPayload = { name: data.name, url: data.url };
+                    // Зашифровываем структуру метаданных файла для безопасности путей
                     const encryptedPayload = encryptData(JSON.stringify(contentPayload), currentRoom);
                     ws.send(JSON.stringify({ 
                         action: 'send_msg', 
@@ -1041,16 +1171,16 @@
             });
             fileInput.value = '';
         }
-
+ 
         function renderMessage(msg, isHistoryLoad) {
             const container = document.getElementById('messages');
             const emptyMsg = document.getElementById('empty-chat-msg');
             if(emptyMsg) emptyMsg.remove();
-
+ 
             if (container.innerHTML.includes('Загрузка сообщений...')) {
                 container.innerHTML = '';
             }
-
+ 
             const isMe = msg.username === myUsername;
             const row = document.createElement('div');
             row.className = 'msg-row' + (isMe ? ' my-row' : '');
@@ -1061,18 +1191,23 @@
             
             let html = `<div class="msg-author">${escapeHTML(msg.username)}</div><div class="msg-body" id="content-${msg.id}">`;
             
+            // Расшифровка тела на клиенте
             const targetRoomKey = msg.room || currentRoom;
-
+ 
             if (msg.msg_type === 'text') {
                 const decryptedText = decryptData(msg.content, targetRoomKey);
                 html += escapeHTML(decryptedText);
-            } else if (['image', 'file', 'audio', 'video'].includes(msg.msg_type)) {
+            } else if (['image', 'file', 'audio', 'video', 'voice', 'video_note'].includes(msg.msg_type)) {
                 try {
                     const decryptedStr = decryptData(msg.content, targetRoomKey);
                     const fileData = typeof decryptedStr === 'string' ? JSON.parse(decryptedStr) : decryptedStr;
                     
                     if (msg.msg_type === 'image') {
                         html += `<img src="${encodeURI(fileData.url)}" alt="${escapeHTML(fileData.name)}">`;
+                    } else if (msg.msg_type === 'voice') {
+                        html += `🎤 <audio controls src="${encodeURI(fileData.url)}" style="height:36px;"></audio>`;
+                    } else if (msg.msg_type === 'video_note') {
+                        html += `<video class="video-note-bubble" src="${encodeURI(fileData.url)}" muted playsinline onclick="this.paused ? this.play() : this.pause()" loop></video>`;
                     } else if (msg.msg_type === 'audio') {
                         html += `🎵 <b>${escapeHTML(fileData.name)}</b><audio controls src="${encodeURI(fileData.url)}"></audio>`;
                     } else if (msg.msg_type === 'video') {
@@ -1080,8 +1215,11 @@
                     } else {
                         html += `📎 <b>${escapeHTML(fileData.name)}</b>`;
                     }
-                    html += `<br><a href="${encodeURI(fileData.url)}" download="${escapeHTML(fileData.name)}" class="download-btn">📥 Скачать</a>`;
+                    if (!['voice', 'video_note'].includes(msg.msg_type)) {
+                        html += `<br><a href="${encodeURI(fileData.url)}" download="${escapeHTML(fileData.name)}" class="download-btn">📥 Скачать</a>`;
+                    }
                 } catch(e) {
+                    // Резервный вариант, если это старый незашифрованный JSON
                     try {
                         const fileData = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
                         if (msg.msg_type === 'image') html += `<img src="${encodeURI(fileData.url)}">`;
@@ -1103,9 +1241,9 @@
             if(!isHistoryLoad) container.scrollTop = container.scrollHeight;
             else setTimeout(() => { container.scrollTop = container.scrollHeight; }, 10);
         }
-
+ 
         function deleteMessage(id) { if(confirm("Удалить это сообщение?")) ws.send(JSON.stringify({ action: 'delete_msg', msg_id: id })); }
-
+ 
         function startCallWithActiveUser() {
             if (!currentChatPartner) return;
             callTarget = currentChatPartner;
@@ -1113,26 +1251,38 @@
             document.getElementById('call-status-text').textContent = `Вызов ${callTarget}...`;
             resetTimer();
             openModal('call-status-modal');
-
-            ws.send(JSON.stringify({ action: 'call_user', target: callTarget }));
+ 
+            ws.send(JSON.stringify({
+                action: 'call_user',
+                target: callTarget
+            }));
         }
-
+ 
         async function acceptCall() {
             closeModals();
             document.getElementById('call-status-text').textContent = "Подключение...";
             openModal('call-status-modal');
             startTimer();
-
-            ws.send(JSON.stringify({ action: 'call_response', target: callTarget, accepted: true }));
+ 
+            ws.send(JSON.stringify({
+                action: 'call_response',
+                target: callTarget,
+                accepted: true
+            }));
+            
             await startWebRTCPeer(false);
         }
-
+ 
         function declineCall() {
             closeModals();
-            ws.send(JSON.stringify({ action: 'call_response', target: callTarget, accepted: false }));
+            ws.send(JSON.stringify({
+                action: 'call_response',
+                target: callTarget,
+                accepted: false
+            }));
             callTarget = null;
         }
-
+ 
         async function startWebRTCPeer(isCaller) {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -1142,16 +1292,16 @@
                 hangUp();
                 return;
             }
-
+ 
             peerConnection = new RTCPeerConnection(rtcConfig);
             iceCandidateQueue = []; 
             
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
+ 
             peerConnection.ontrack = (event) => {
                 document.getElementById('remoteAudio').srcObject = event.streams[0];
             };
-
+ 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate && callTarget) {
                     ws.send(JSON.stringify({
@@ -1161,7 +1311,7 @@
                     }));
                 }
             };
-
+ 
             if (isCaller) {
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
@@ -1172,7 +1322,7 @@
                 }));
             }
         }
-
+ 
         function hangUp() {
             if (peerConnection) { peerConnection.close(); peerConnection = null; }
             if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
@@ -1181,7 +1331,7 @@
             callTarget = null;
             iceCandidateQueue = [];
         }
-
+ 
         function startTimer() {
             resetTimer();
             callTimerInterval = setInterval(() => {
@@ -1191,10 +1341,10 @@
                 document.getElementById('call-timer').textContent = `${m}:${s}`;
             }, 1000);
         }
-
+ 
         function stopTimer() { clearInterval(callTimerInterval); }
         function resetTimer() { callSeconds = 0; document.getElementById('call-timer').textContent = "00:00"; }
-
+ 
         function openChatGallery() {
             const grid = document.getElementById('gallery-grid');
             grid.innerHTML = ''; 
@@ -1206,6 +1356,7 @@
             } else {
                 images.forEach(img => {
                     const clone = img.cloneNode(true);
+                    
                     clone.style.width = '100%';
                     clone.style.height = '90px';
                     clone.style.objectFit = 'cover';
@@ -1223,10 +1374,157 @@
                         clone.style.transform = 'scale(1)';
                         clone.style.boxShadow = 'none';
                     };
+                    
                     grid.appendChild(clone);
                 });
             }
             openModal('gallery-modal');
+        }
+ 
+        // ==================== ЭМОДЗИ-ПАНЕЛЬ ====================
+        const EMOJI_LIST = "😀 😁 😂 🤣 😊 😍 😘 😉 😎 🤩 🥳 😇 🙂 🙃 😜 🤔 🤨 😐 😑 😶 🙄 😏 😴 🤤 😪 😷 🤒 🤕 🤢 🥵 🥶 😱 😨 😰 😢 😭 😤 😡 🤬 😳 🥺 😬 😅 😆 🙈 🙉 🙊 💀 👻 👽 🤖 🎃 😺 😹 😻 👍 👎 👌 ✌️ 🤞 🤟 🤙 👏 🙌 🙏 💪 🤝 👀 🧠 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💯 🔥 ✨ ⭐ 🎉 🎊 🎁 🎈 💤 💩 🍕 🍔 🍟 🌭 🍎 🍇 🍓 🍒 🍿 ☕ 🍺 🍾 ⚽ 🏀 🎮 🎲 🚀 ✈️ 🚗 🏠 💰 💎 🔔 📱 💻 ⚡ 🌈 ☀️ 🌙 ⭐ 🌧️ ❄️".split(' ');
+ 
+        function initEmojiPicker() {
+            const grid = document.getElementById('emoji-grid');
+            if (grid.childElementCount) return;
+            EMOJI_LIST.forEach(e => {
+                const span = document.createElement('span');
+                span.textContent = e;
+                span.onclick = () => {
+                    const input = document.getElementById('message-input');
+                    input.value += e;
+                    input.focus();
+                };
+                grid.appendChild(span);
+            });
+        }
+        function toggleEmojiPicker() {
+            initEmojiPicker();
+            document.getElementById('emoji-picker').classList.toggle('show');
+        }
+        document.addEventListener('click', (e) => {
+            const picker = document.getElementById('emoji-picker');
+            const btn = document.getElementById('emoji-btn');
+            if (picker && picker.classList.contains('show') && !picker.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+                picker.classList.remove('show');
+            }
+        });
+ 
+        // ==================== ГОЛОСОВЫЕ СООБЩЕНИЯ (зажать микрофон) ====================
+        let voiceRecorder = null, voiceChunks = [], voiceStartTime = 0, voiceTimerInterval = null, voiceCancelled = false;
+ 
+        function uploadAndSend(blob, filename, msgType) {
+            const formData = new FormData();
+            formData.append('file', new File([blob], filename, { type: blob.type }));
+            fetch('/upload', { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const contentPayload = { name: data.name, url: data.url };
+                        const encryptedPayload = encryptData(JSON.stringify(contentPayload), currentRoom);
+                        ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedPayload, msg_type: msgType }));
+                    } else {
+                        alert("Ошибка загрузки: " + data.error);
+                    }
+                })
+                .catch(() => alert("Не удалось загрузить файл."));
+        }
+ 
+        async function startVoiceRecording() {
+            if (!currentRoom) return;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                voiceChunks = []; voiceCancelled = false;
+                voiceRecorder = new MediaRecorder(stream);
+                voiceRecorder.ondataavailable = (e) => voiceChunks.push(e.data);
+                voiceRecorder.onstop = () => {
+                    stream.getTracks().forEach(t => t.stop());
+                    document.getElementById('voice-recorder-bar').classList.remove('show');
+                    document.getElementById('mic-btn').classList.remove('recording');
+                    clearInterval(voiceTimerInterval);
+                    if (voiceCancelled || voiceChunks.length === 0) return;
+                    const blob = new Blob(voiceChunks, { type: 'audio/webm' });
+                    if (blob.size > 500) uploadAndSend(blob, `voice_${Date.now()}.webm`, 'voice');
+                };
+                voiceRecorder.start();
+                voiceStartTime = Date.now();
+                document.getElementById('voice-recorder-bar').classList.add('show');
+                document.getElementById('mic-btn').classList.add('recording');
+                voiceTimerInterval = setInterval(() => {
+                    const sec = Math.floor((Date.now() - voiceStartTime) / 1000);
+                    document.getElementById('rec-timer').textContent = `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
+                    if (sec >= 120) stopVoiceRecording(false);
+                }, 200);
+            } catch (err) {
+                alert("Нет доступа к микрофону");
+            }
+        }
+        function stopVoiceRecording(cancel) {
+            voiceCancelled = !!cancel;
+            if (voiceRecorder && voiceRecorder.state !== 'inactive') voiceRecorder.stop();
+        }
+ 
+        (function setupMicButton() {
+            const btn = document.getElementById('mic-btn');
+            if (!btn) return;
+            let pressing = false;
+            const start = (e) => { e.preventDefault(); pressing = true; startVoiceRecording(); };
+            const end = () => { if (pressing) { pressing = false; stopVoiceRecording(false); } };
+            btn.addEventListener('mousedown', start);
+            btn.addEventListener('touchstart', start, { passive: false });
+            document.addEventListener('mouseup', end);
+            document.addEventListener('touchend', end);
+        })();
+ 
+        // ==================== ВИДЕО-КРУЖОК (видео-заметка как в ТГ) ====================
+        let videoNoteStream = null, videoNoteRecorder = null, videoNoteChunks = [], videoNoteBlob = null;
+ 
+        async function openVideoNoteModal() {
+            if (!currentRoom) return;
+            try {
+                videoNoteStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 480, height: 480 }, audio: true });
+                document.getElementById('video-note-preview').srcObject = videoNoteStream;
+                document.getElementById('video-note-send-btn').style.display = 'none';
+                document.getElementById('video-note-record-btn').classList.remove('recording');
+                document.getElementById('video-note-hint').textContent = 'Нажмите, чтобы начать запись (до 60 сек)';
+                openModal('video-note-modal');
+            } catch (err) {
+                alert("Нет доступа к камере");
+            }
+        }
+        function closeVideoNoteModal() {
+            if (videoNoteStream) videoNoteStream.getTracks().forEach(t => t.stop());
+            videoNoteStream = null; videoNoteBlob = null;
+            closeModals();
+        }
+        function toggleVideoNoteRecording() {
+            const btn = document.getElementById('video-note-record-btn');
+            if (btn.classList.contains('recording')) {
+                videoNoteRecorder.stop();
+                return;
+            }
+            videoNoteChunks = [];
+            videoNoteRecorder = new MediaRecorder(videoNoteStream, { mimeType: 'video/webm' });
+            videoNoteRecorder.ondataavailable = (e) => videoNoteChunks.push(e.data);
+            videoNoteRecorder.onstop = () => {
+                videoNoteBlob = new Blob(videoNoteChunks, { type: 'video/webm' });
+                const preview = document.getElementById('video-note-preview');
+                preview.srcObject = null;
+                preview.src = URL.createObjectURL(videoNoteBlob);
+                preview.muted = false; preview.loop = true; preview.play();
+                document.getElementById('video-note-send-btn').style.display = 'inline-block';
+                document.getElementById('video-note-hint').textContent = 'Готово! Можно отправить';
+                btn.classList.remove('recording');
+            };
+            videoNoteRecorder.start();
+            btn.classList.add('recording');
+            document.getElementById('video-note-hint').textContent = 'Идёт запись...';
+            setTimeout(() => { if (videoNoteRecorder && videoNoteRecorder.state === 'recording') videoNoteRecorder.stop(); }, 60000);
+        }
+        function sendVideoNote() {
+            if (!videoNoteBlob) return;
+            uploadAndSend(videoNoteBlob, `videonote_${Date.now()}.webm`, 'video_note');
+            closeVideoNoteModal();
         }
     </script>
 </body>

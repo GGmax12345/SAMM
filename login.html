@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SAM Messenger - Вход</title>
     <style>
         * { box-sizing: border-box; }
@@ -13,6 +14,23 @@
             display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;
             overflow: hidden;
             perspective: 1000px;
+            position: relative;
+        }
+        #bg-flow {
+            position: fixed; inset: 0; z-index: -1; pointer-events: none;
+            background:
+                radial-gradient(circle at 15% 20%, rgba(30,80,170,0.30), transparent 55%),
+                radial-gradient(circle at 85% 15%, rgba(6,20,60,0.55), transparent 55%),
+                radial-gradient(circle at 50% 90%, rgba(40,100,200,0.24), transparent 60%),
+                radial-gradient(circle at 90% 80%, rgba(4,14,45,0.55), transparent 55%);
+            background-size: 250% 250%;
+            filter: blur(42px);
+            animation: bgFlowShift 18s ease-in-out infinite;
+        }
+        @keyframes bgFlowShift {
+            0% { background-position: 0% 0%; } 25% { background-position: 80% 30%; }
+            50% { background-position: 100% 70%; } 75% { background-position: 30% 90%; }
+            100% { background-position: 0% 0%; }
         }
 
         /* 1. ФОНАРИК ДЛЯ ЗАДНЕГО ФОНА */
@@ -37,8 +55,8 @@
             -webkit-backdrop-filter: blur(35px);
             border: 1px solid rgba(163, 191, 255, 0.05);
             border-radius: 24px; 
-            padding: 40px 36px; 
-            width: 390px;
+            padding: clamp(28px, 6vw, 40px) clamp(22px, 6vw, 36px); 
+            width: min(390px, 92vw);
             box-shadow: 0 40px 90px rgba(0, 0, 0, 0.95);
             text-align: center; 
             transform-style: preserve-3d;
@@ -63,7 +81,7 @@
         #auth-block h2 { 
             position: relative; z-index: 2; 
             margin: 0 0 30px 0; 
-            font-size: 28px;
+            font-size: clamp(22px, 5.5vw, 28px);
             font-weight: 700; 
             background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%);
             -webkit-background-clip: text;
@@ -169,6 +187,7 @@
 </head>
 <body>
 
+    <div id="bg-flow"></div>
     <div id="cursor-glow-bg"></div>
 
     <div id="auth-block">
@@ -217,36 +236,68 @@
     </div>
 
     <script>
-        // --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET ---
+        // --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET (С АВТО-ПЕРЕПОДКЛЮЧЕНИЕМ) ---
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+        let ws;
         let currentAuthAction = 'login';
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
 
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
+        function connectWS() {
+            ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
             const errorEl = document.getElementById('auth-error');
 
-            if (data.type === 'auth_result') {
-                if (data.success) {
-                    localStorage.setItem('sam_username', data.username);
-                    window.location.href = '/chat';
-                } else {
-                    errorEl.style.color = '#ff5757';
-                    errorEl.textContent = data.error;
+            ws.onopen = function() {
+                reconnectAttempts = 0;
+                if (errorEl.dataset.reconnecting === '1') {
+                    errorEl.style.color = '#57ff57';
+                    errorEl.textContent = 'Соединение восстановлено!';
+                    errorEl.dataset.reconnecting = '0';
+                    setTimeout(() => { if (errorEl.dataset.reconnecting !== '1') errorEl.textContent = ''; }, 2000);
                 }
-            } 
-            // Обработка успешной генерации и отправки кода
-            else if (data.type === 'code_sent') {
-                errorEl.style.color = '#57ff57'; // Зеленый цвет для информирования
-                errorEl.textContent = data.text;
-                resetCodeButtonCooldown();
-            }
-            // Ошибки бэкенда при генерации
-            else if (data.type === 'auth_error') {
-                errorEl.style.color = '#ff5757';
-                errorEl.textContent = data.text;
-            }
-        };
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'auth_result') {
+                    if (data.success) {
+                        localStorage.setItem('sam_username', data.username);
+                        localStorage.setItem('sam_token', data.token);
+                        window.location.href = '/chat';
+                    } else {
+                        errorEl.style.color = '#ff5757';
+                        errorEl.textContent = data.error;
+                    }
+                } 
+                // Обработка успешной генерации и отправки кода
+                else if (data.type === 'code_sent') {
+                    errorEl.style.color = '#57ff57'; // Зеленый цвет для информирования
+                    errorEl.textContent = data.text;
+                    resetCodeButtonCooldown();
+                }
+                // Ошибки бэкенда при генерации
+                else if (data.type === 'auth_error') {
+                    errorEl.style.color = '#ff5757';
+                    errorEl.textContent = data.text;
+                }
+            };
+
+            ws.onclose = function() {
+                errorEl.dataset.reconnecting = '1';
+                errorEl.style.color = '#ffb020';
+                errorEl.textContent = 'Соединение с сервером потеряно, переподключаюсь...';
+                reconnectAttempts++;
+                const delay = Math.min(1000 * reconnectAttempts, 8000);
+                clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(connectWS, delay);
+            };
+
+            ws.onerror = function() {
+                ws.close();
+            };
+        }
+        connectWS();
 
         // --- ЗАПРОС КОДА НА ПОЧТУ ЧЕРЕЗ WS ---
         function requestCode(event) {
@@ -267,7 +318,7 @@
                 ws.send(JSON.stringify({ action: 'request_code', email: email }));
             } else {
                 errorEl.style.color = '#ff5757';
-                errorEl.textContent = 'Нет соединения с сервером.';
+                errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
             }
         }
 
@@ -323,7 +374,7 @@
                 ws.send(JSON.stringify(payload));
             } else {
                 errorEl.style.color = '#ff5757';
-                errorEl.textContent = 'Нет соединения с сервером. Обновите страницу.';
+                errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
             }
         }
 
@@ -356,12 +407,18 @@
             }, 150);
         }
 
-        // --- ЭФФЕКТЫ СВЕЧЕНИЯ И 3D КУРСОР ---
+        // --- ЭФФЕКТЫ СВЕЧЕНИЯ И 3D КУРСОР (только для устройств с мышью — экономим батарею на телефонах) ---
+        const isTouchDevice = window.matchMedia('(hover: none)').matches;
         const authBlock = document.getElementById('auth-block');
         const bgGlow = document.getElementById('cursor-glow-bg');
         const innerGlow = document.getElementById('panel-inner-glow');
         const glassElements = document.querySelectorAll('.glass-element');
-        
+
+        if (isTouchDevice) {
+            bgGlow.style.display = 'none';
+            innerGlow.style.display = 'none';
+        } else {
+
         let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
         let glowX = mouseX, glowY = mouseY;
         let blockCurrentX = 0, blockCurrentY = 0;
@@ -436,6 +493,8 @@
             requestAnimationFrame(renderLoop);
         }
         requestAnimationFrame(renderLoop);
+
+        } // конец блока эффектов для устройств с мышью
     </script>
 </body>
 </html>
