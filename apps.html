@@ -51,9 +51,10 @@
         .topbar {
             display: flex; align-items: center; gap: 14px;
             padding: 12px 20px;
-            background-color: rgba(23,33,43,0.85);
-            backdrop-filter: blur(6px);
-            border-bottom: 1px solid #0c1319;
+            background-color: rgba(23,33,43,0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(163,191,255,0.07);
             flex-shrink: 0;
         }
         .back-btn {
@@ -87,30 +88,36 @@
         }
 
         .bubble {
-            background-color: #17212b;
+            background-color: rgba(23,33,43,0.55);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(163,191,255,0.07);
             border-radius: 4px 14px 14px 14px;
             padding: 12px 14px 10px 14px;
             max-width: min(420px, 88vw);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
         }
         .bubble .sender { font-size: 13px; font-weight: 600; color: #5288c1; margin-bottom: 4px; }
         .bubble .text { font-size: 15px; line-height: 1.4; color: #efeef1; }
         .bubble .time { font-size: 11px; color: #6b7c8d; text-align: right; margin-top: 4px; }
 
         .app-bubble {
-            background-color: #17212b;
+            background-color: rgba(23,33,43,0.55);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
             border-radius: 4px 14px 14px 14px;
             padding: 16px;
             max-width: min(360px, 88vw);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
             display: flex; align-items: center; gap: 14px;
-            border: 1px solid #10171e;
-            transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+            border: 1px solid rgba(163,191,255,0.08);
+            transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
         }
         .app-bubble:hover {
             border-color: rgba(82,161,241,0.55);
+            background-color: rgba(28,40,54,0.65);
             transform: translateY(-3px);
-            box-shadow: 0 14px 34px rgba(45,120,200,0.18);
+            box-shadow: 0 14px 34px rgba(45,120,200,0.22);
         }
         .app-icon { width: 46px; height: 46px; flex-shrink: 0; transition: transform 0.3s ease; }
         .app-bubble:hover .app-icon { transform: scale(1.08) rotate(-3deg); }
