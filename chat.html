@@ -441,7 +441,6 @@
 
     <script>
         const u = localStorage.getItem('sam_username');
-        const p = localStorage.getItem('sam_password');
 
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
@@ -462,7 +461,6 @@
         
         // --- КЛИЕНТСКОЕ ШИФРОВАНИЕ (E2EE) ---
         function getChatKey(roomName) {
-            // Генерируем уникальный детерминированный ключ для AES на основе хэша комнаты
             return CryptoJS.SHA256(roomName + "_sam_secure_salt_e2ee").toString();
         }
 
@@ -478,7 +476,7 @@
                 const key = getChatKey(roomName);
                 const bytes = CryptoJS.AES.decrypt(ciphertext, key);
                 const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
-                return decryptedText || ciphertext; // Возвращаем оригинал, если сообщение было отправлено до включения шифрования
+                return decryptedText || ciphertext; 
             } catch (e) {
                 return ciphertext; 
             }
@@ -579,7 +577,7 @@
         }
 
         ws.onopen = function() {
-            ws.send(JSON.stringify({ action: 'login', username: u, password: p }));
+            ws.send(JSON.stringify({ action: 'login', username: u }));
         };
 
         ws.onclose = function() {
@@ -904,6 +902,7 @@
             closeModals();
         }
 
+        // Остальные функции без изменений
         function openCreateGroupModal() { toggleMenu(); openModal('group-modal'); }
         
         function confirmCreateGroup() {
@@ -1006,7 +1005,6 @@
             const input = document.getElementById('message-input');
             const text = input.value.trim();
             if (text && currentRoom) {
-                // Шифруем текст перед отправкой
                 const encryptedText = encryptData(text, currentRoom);
                 ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedText, msg_type: 'text' }));
                 input.value = '';
@@ -1026,7 +1024,6 @@
             .then(data => {
                 if (data.success) {
                     const contentPayload = { name: data.name, url: data.url };
-                    // Зашифровываем структуру метаданных файла для безопасности путей
                     const encryptedPayload = encryptData(JSON.stringify(contentPayload), currentRoom);
                     ws.send(JSON.stringify({ 
                         action: 'send_msg', 
@@ -1064,7 +1061,6 @@
             
             let html = `<div class="msg-author">${escapeHTML(msg.username)}</div><div class="msg-body" id="content-${msg.id}">`;
             
-            // Расшифровка тела на клиенте
             const targetRoomKey = msg.room || currentRoom;
 
             if (msg.msg_type === 'text') {
@@ -1086,7 +1082,6 @@
                     }
                     html += `<br><a href="${encodeURI(fileData.url)}" download="${escapeHTML(fileData.name)}" class="download-btn">📥 Скачать</a>`;
                 } catch(e) {
-                    // Резервный вариант, если это старый незашифрованный JSON
                     try {
                         const fileData = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
                         if (msg.msg_type === 'image') html += `<img src="${encodeURI(fileData.url)}">`;
@@ -1119,10 +1114,7 @@
             resetTimer();
             openModal('call-status-modal');
 
-            ws.send(JSON.stringify({
-                action: 'call_user',
-                target: callTarget
-            }));
+            ws.send(JSON.stringify({ action: 'call_user', target: callTarget }));
         }
 
         async function acceptCall() {
@@ -1131,22 +1123,13 @@
             openModal('call-status-modal');
             startTimer();
 
-            ws.send(JSON.stringify({
-                action: 'call_response',
-                target: callTarget,
-                accepted: true
-            }));
-            
+            ws.send(JSON.stringify({ action: 'call_response', target: callTarget, accepted: true }));
             await startWebRTCPeer(false);
         }
 
         function declineCall() {
             closeModals();
-            ws.send(JSON.stringify({
-                action: 'call_response',
-                target: callTarget,
-                accepted: false
-            }));
+            ws.send(JSON.stringify({ action: 'call_response', target: callTarget, accepted: false }));
             callTarget = null;
         }
 
@@ -1223,7 +1206,6 @@
             } else {
                 images.forEach(img => {
                     const clone = img.cloneNode(true);
-                    
                     clone.style.width = '100%';
                     clone.style.height = '90px';
                     clone.style.objectFit = 'cover';
@@ -1241,7 +1223,6 @@
                         clone.style.transform = 'scale(1)';
                         clone.style.boxShadow = 'none';
                     };
-                    
                     grid.appendChild(clone);
                 });
             }
