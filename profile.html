@@ -159,8 +159,8 @@
 
     <script>
         const u = localStorage.getItem('sam_username');
-        const p = localStorage.getItem('sam_password');
-        if (!u || !p) window.location.href = '/';
+        const t = localStorage.getItem('sam_token');
+        if (!u || !t) window.location.href = '/';
 
         document.getElementById('p-display-name').textContent = u;
         document.getElementById('p-avatar').textContent = u.charAt(0).toUpperCase();
@@ -169,10 +169,13 @@
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
 
-        ws.onopen = function () { ws.send(JSON.stringify({ action: 'login', username: u, password: p })); };
+        ws.onopen = function () { ws.send(JSON.stringify({ action: 'session_login', username: u, token: t })); };
         ws.onmessage = function (event) {
             const data = JSON.parse(event.data);
-            if (data.type === 'nickname_changed') {
+            if (data.type === 'auth_result' && !data.success) {
+                localStorage.clear();
+                window.location.href = '/';
+            } else if (data.type === 'nickname_changed') {
                 localStorage.setItem('sam_username', data.new_name);
                 alert("Никнейм успешно изменен!");
                 window.location.href = '/chat';
