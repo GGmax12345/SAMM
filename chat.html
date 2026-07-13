@@ -537,7 +537,9 @@
         if (!u || !t) { window.location.href = '/'; }
  
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+        let ws;
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
         
         let myUsername = u;
         let myRole = 'user';
@@ -682,15 +684,29 @@
             }
         }
  
-        ws.onopen = function() {
+        function connectWS() {
+            ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+            ws.onopen = handleWSOpen;
+            ws.onclose = handleWSClose;
+            ws.onmessage = handleWSMessage;
+            ws.onerror = function() { ws.close(); };
+        }
+        connectWS();
+
+        function handleWSOpen() {
+            reconnectAttempts = 0;
             ws.send(JSON.stringify({ action: 'session_login', username: u, token: t }));
+        }
+ 
+        function handleWSClose() {
+            triggerToast('Система', 'Соединение с сервером прервано, переподключаюсь...');
+            reconnectAttempts++;
+            const delay = Math.min(1000 * reconnectAttempts, 8000);
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connectWS, delay);
         };
  
-        ws.onclose = function() {
-            triggerToast('Система', 'Соединение с сервером прервано. Пожалуйста, обновите страницу.');
-        };
- 
-        ws.onmessage = async function(event) {
+        async function handleWSMessage(event) {
             try {
                 const data = JSON.parse(event.data);
  
