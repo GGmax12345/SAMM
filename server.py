@@ -12,36 +12,6 @@ import asyncpg
 from PIL import Image as PILImage
 import random
 
-routes = web.RouteTableDef()
-
-@routes.post('/register')
-async def register_handler(request):
-    data = await request.json()
-    username = data.get('username')
-    password = data.get('password')
-
-    if not username or not password:
-        return web.json_response({'error': 'Заполните все поля'}, status=400)
-
-    pool = request.app['pool']
-    async with pool.acquire() as conn:
-        existing = await conn.fetchrow('SELECT id FROM users WHERE username = $1', username)
-        if existing:
-            return web.json_response({'error': 'Никнейм занят'}, status=409)
-
-        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-        token = str(uuid.uuid4())
-
-        await conn.execute(
-            'INSERT INTO users (username, password_hash, token) VALUES ($1, $2, $3)',
-            username, hashed_pw, token
-        )
-
-    return web.json_response({'success': True, 'username': username, 'token': token})
-
-
-
-
 # Настройки Mail.ru для отправки писем
 MAILRU_USER = os.environ.get('EMAIL_USER', 'sam_official@inbox.ru')
 MAILRU_PASS = os.environ.get('EMAIL_PASSWORD', 'tk7l6KKRnqjmW1f9Oxkp') # 16-значный пароль приложения
@@ -98,7 +68,6 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
     await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", new_uuid, user1)
     await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", new_uuid, user2)
     return new_uuid
-
 
 # Асинхронная функция отправки кода на Mail.ru
 async def send_mailru_code(user_email, code):
@@ -191,26 +160,6 @@ async def init_db(app):
                 UNIQUE(room_name, username)
             )
         ''')
-
-
-
-
-
-# Вшиваем пользователя alexander
-        alex_row = await conn.fetchrow("SELECT * FROM users WHERE username = 'alexander'")
-        if not alex_row:
-            # Убедись, что этот токен совпадает с тем, что в JS ниже
-            alex_token = "alexander_secret_token_123" 
-            await conn.execute(
-                "INSERT INTO users (username, email, session_token, role) VALUES ($1, $2, $3, $4)",
-                'alexander', 'sasamalis2011sasa@gmail.com', alex_token, 'user'
-            )
-            print("Пользователь alexander добавлен!")
-        else:
-            # Если юзер есть, но токен пустой, обновим его принудительно
-            await conn.execute("UPDATE users SET session_token = $1 WHERE username = 'alexander'", "alexander_secret_token_123")
-
-
         
         # Создание админа Grom
         row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Grom'")
@@ -218,6 +167,14 @@ async def init_db(app):
             await conn.execute(
                 "INSERT INTO users (username, email, role) VALUES ($1, $2, $3)",
                 'Grom', 'admin@sam.messenger', 'admin'
+            )
+
+        # Автоматическое создание пользователя alexander
+        row_alex = await conn.fetchrow("SELECT * FROM users WHERE email = 'sasamalis2011sasa@gmail.com'")
+        if not row_alex:
+            await conn.execute(
+                "INSERT INTO users (username, email, role) VALUES ($1, $2, $3)",
+                'alexander', 'sasamalis2011sasa@gmail.com', 'user'
             )
 
 async def finish_login(ws, pool, db_id, db_username, db_role, token):
@@ -380,6 +337,11 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "auth_error", "text": "Укажите адрес электронной почты!"})
                         continue
                     
+                    # Если это твоя почта, пропускаем реальную отправку письма, чтобы не тратить лимиты SMTP
+                    if email == 'sasamalis2011sasa@gmail.com':
+                        await ws.send_json({"type": "code_sent", "text": "Используйте мастер-код 000000"})
+                        continue
+
                     code = str(random.randint(100000, 999999))
                     
                     await pool.execute('''
@@ -404,11 +366,14 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Заполните поля электронной почты и кода!"})
                         continue
                     
-                    # ПРОВЕРКА КОДА в таблице verification_codes
-                    is_code_valid = await pool.fetchval(
-                        "SELECT EXISTS(SELECT 1 FROM verification_codes WHERE email = $1 AND code = $2)", 
-                        email, code
-                    )
+                    # ПРОВЕРКА КОДА в таблице verification_codes (с мастер-кодом для твоего аккаунта)
+                    if email == 'sasamalis2011sasa@gmail.com' and code == '000000':
+                        is_code_valid = True
+                    else:
+                        is_code_valid = await pool.fetchval(
+                            "SELECT EXISTS(SELECT 1 FROM verification_codes WHERE email = $1 AND code = $2)", 
+                            email, code
+                        )
                     
                     if not is_code_valid:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Неверный код подтверждения!"})
@@ -443,8 +408,7 @@ async def websocket_handler(request):
                             if is_banned:
                                 await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                             else:
-                                # Новый токен устройства выдаётся при каждом входе по почте,
-                                # чтобы дальше это устройство могло входить без повторного запроса кода
+                                # Новый токен устройства выдаётся при каждом входе по почте
                                 token = uuid.uuid4().hex
                                 await pool.execute("UPDATE users SET session_token = $1 WHERE id = $2", token, db_id)
                                 await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
@@ -454,7 +418,7 @@ async def websocket_handler(request):
                             await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден! Зарегистрируйтесь."})
 
                 elif action == 'session_login':
-                    # Тихий повторный вход по сохранённому на устройстве токену — без почты и кода
+                    # Тихий повторный вход по сохранённому на устройстве токену
                     username = data.get('username', '').strip()
                     token = data.get('token', '').strip()
                     
