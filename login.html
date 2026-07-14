@@ -1,500 +1,499 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>SAM Messenger - Вход</title>
-    <style>
-        * { box-sizing: border-box; }
-        
-        body {
-            background: radial-gradient(circle at center, #070b14 0%, #020408 100%);
-            color: #dbe5ff; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;
-            overflow: hidden;
-            perspective: 1000px;
-            position: relative;
-        }
-        #bg-flow {
-            position: fixed; inset: 0; z-index: -1; pointer-events: none;
-            background:
-                radial-gradient(circle at 15% 20%, rgba(30,80,170,0.30), transparent 55%),
-                radial-gradient(circle at 85% 15%, rgba(6,20,60,0.55), transparent 55%),
-                radial-gradient(circle at 50% 90%, rgba(40,100,200,0.24), transparent 60%),
-                radial-gradient(circle at 90% 80%, rgba(4,14,45,0.55), transparent 55%);
-            background-size: 250% 250%;
-            filter: blur(42px);
-            animation: bgFlowShift 18s ease-in-out infinite;
-        }
-        @keyframes bgFlowShift {
-            0% { background-position: 0% 0%; } 25% { background-position: 80% 30%; }
-            50% { background-position: 100% 70%; } 75% { background-position: 30% 90%; }
-            100% { background-position: 0% 0%; }
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SAM Messenger - Вход</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    background: radial-gradient(circle at center, #070b14 0%, #020408 100%);
+    color: #dbe5ff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;
+    overflow: hidden;
+    perspective: 1000px;
+    position: relative;
+}
+#bg-flow {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(30,80,170,0.30), transparent 55%),
+        radial-gradient(circle at 85% 15%, rgba(6,20,60,0.55), transparent 55%),
+        radial-gradient(circle at 50% 90%, rgba(40,100,200,0.24), transparent 60%),
+        radial-gradient(circle at 90% 80%, rgba(4,14,45,0.55), transparent 55%);
+    background-size: 250% 250%;
+    filter: blur(42px);
+    animation: bgFlowShift 18s ease-in-out infinite;
+}
+@keyframes bgFlowShift {
+    0% { background-position: 0% 0%; } 25% { background-position: 80% 30%; }
+    50% { background-position: 100% 70%; } 75% { background-position: 30% 90%; }
+    100% { background-position: 0% 0%; }
+}
+#cursor-glow-bg {
+    position: absolute;
+    width: 250px; height: 250px;
+    background: radial-gradient(circle, rgba(0, 160, 255, 0.3) 0%, transparent 60%);
+    filter: blur(15px);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    z-index: 0;
+    transition: opacity 0.4s ease;
+}
+#auth-block {
+    position: relative;
+    background: rgba(10, 16, 26, 0.7);
+    backdrop-filter: blur(35px);
+    -webkit-backdrop-filter: blur(35px);
+    border: 1px solid rgba(163, 191, 255, 0.05);
+    border-radius: 24px;
+    padding: clamp(28px, 6vw, 40px) clamp(22px, 6vw, 36px);
+    width: min(390px, 92vw);
+    box-shadow: 0 40px 90px rgba(0, 0, 0, 0.95);
+    text-align: center;
+    transform-style: preserve-3d;
+    z-index: 1;
+    text-shadow: 0 0 8px rgba(163, 191, 255, 0.25);
+    overflow: hidden;
+}
+#panel-inner-glow {
+    position: absolute;
+    width: 350px; height: 350px;
+    background: radial-gradient(circle, rgba(0, 180, 255, 0.15) 0%, transparent 60%);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+#auth-block h2 {
+    position: relative; z-index: 2;
+    margin: 0 0 30px 0;
+    font-size: clamp(22px, 5.5vw, 28px);
+    font-weight: 700;
+    background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+}
+.glass-element {
+    position: relative;
+    width: 100%; margin: 14px 0;
+    background: rgba(12, 18, 30, 0.35);
+    border-radius: 14px;
+    transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(1);
+    transition: background 0.3s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1), box-shadow 0.3s;
+    z-index: 2;
+}
+.glass-glow {
+    position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: 1;
+}
+.glass-glow::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(130px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 200, 255, 0.2), transparent 100%);
+    opacity: 0; transition: opacity 0.3s ease;
+}
+.glass-element::after {
+    content: ''; position: absolute; inset: -1px;
+    border-radius: inherit; padding: 2px;
+    background: radial-gradient(100px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 180, 255, 0.7) 0%, rgba(0, 100, 255, 0.3) 50%, transparent 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events: none; z-index: 5; opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.glass-element:hover { background: rgba(8, 12, 22, 0.45); }
+.glass-element:hover .glass-glow::before, .glass-element:hover::after { opacity: 1; }
+.glass-element:active {
+    transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(0.96) translateY(3px) !important;
+    background: rgba(4, 6, 10, 0.98) !important;
+}
+.glass-element:active .glass-glow::before { opacity: 0 !important; }
+.glass-element:active::after { opacity: 0.2 !important; }
+.tabs-glass {
+    background: rgba(12, 18, 28, 0.6);
+    padding: 5px;
+    margin-bottom: 25px;
+    display: flex; align-items: center;
+}
+.auth-tabs { display: flex; width: 100%; position: relative; z-index: 2; }
+.tab {
+    flex: 1; padding: 12px 0; cursor: pointer; color: #5c7499;
+    font-weight: 600; font-size: 14px; text-align: center;
+    position: relative; z-index: 3; transition: color 0.3s ease;
+}
+.tab.active { color: #dbe5ff; text-shadow: 0 0 12px rgba(0, 180, 255, 0.5); }
+.tab-slider {
+    position: absolute;
+    top: 5px; bottom: 5px;
+    left: 5px; width: calc(50% - 5px);
+    background: rgba(0, 150, 255, 0.2);
+    border: 1px solid rgba(0, 180, 255, 0.35);
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 180, 255, 0.3), inset 0 0 10px rgba(0, 180, 255, 0.2);
+    z-index: 1; pointer-events: none;
+}
+.auth-input {
+    width: 100%; padding: 16px;
+    background: transparent; border: none;
+    color: #dbe5ff; outline: none;
+    position: relative; z-index: 4; font-size: 15px;
+}
+.auth-input::placeholder { color: #435368; text-shadow: none; }
 
-        /* 1. ФОНАРИК ДЛЯ ЗАДНЕГО ФОНА */
-        #cursor-glow-bg {
-            position: absolute;
-            width: 250px; 
-            height: 250px;
-            background: radial-gradient(circle, rgba(0, 160, 255, 0.3) 0%, transparent 60%);
-            filter: blur(15px);
-            border-radius: 50%;
-            pointer-events: none;
-            transform: translate(-50%, -50%);
-            z-index: 0;
-            transition: opacity 0.4s ease;
-        }
+/* Плавное скрытие/появление полей, которые нужны только при регистрации */
+#reg-user-wrap, #reg-code-wrap, #reg-pass2-wrap {
+    max-height: 0; opacity: 0; overflow: hidden; margin: 0;
+    transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+#reg-user-wrap.expanded, #reg-code-wrap.expanded, #reg-pass2-wrap.expanded { max-height: 100px; opacity: 1; }
 
-        /* 2. ГЛАВНАЯ ПАНЕЛЬ */
-        #auth-block {
-            position: relative;
-            background: rgba(10, 16, 26, 0.7);
-            backdrop-filter: blur(35px);
-            -webkit-backdrop-filter: blur(35px);
-            border: 1px solid rgba(163, 191, 255, 0.05);
-            border-radius: 24px; 
-            padding: clamp(28px, 6vw, 40px) clamp(22px, 6vw, 36px); 
-            width: min(390px, 92vw);
-            box-shadow: 0 40px 90px rgba(0, 0, 0, 0.95);
-            text-align: center; 
-            transform-style: preserve-3d;
-            z-index: 1;
-            text-shadow: 0 0 8px rgba(163, 191, 255, 0.25);
-            overflow: hidden;
-        }
-
-        /* ФОНАРИК ВНУТРИ ПАНЕЛИ */
-        #panel-inner-glow {
-            position: absolute;
-            width: 350px; height: 350px;
-            background: radial-gradient(circle, rgba(0, 180, 255, 0.15) 0%, transparent 60%);
-            border-radius: 50%;
-            pointer-events: none;
-            transform: translate(-50%, -50%);
-            z-index: 0;
-            opacity: 0;
-            transition: opacity 0.4s ease;
-        }
-
-        #auth-block h2 { 
-            position: relative; z-index: 2; 
-            margin: 0 0 30px 0; 
-            font-size: clamp(22px, 5.5vw, 28px);
-            font-weight: 700; 
-            background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: none;
-        }
-
-        /* 3. СТЕКЛЯННЫЕ ЭЛЕМЕНТЫ */
-        .glass-element {
-            position: relative;
-            width: 100%; margin: 14px 0;
-            background: rgba(12, 18, 30, 0.35); 
-            border-radius: 14px; 
-            transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(1);
-            transition: background 0.3s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1), box-shadow 0.3s;
-            z-index: 2;
-        }
-
-        .glass-glow {
-            position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; z-index: 1;
-        }
-        .glass-glow::before {
-            content: ''; position: absolute; inset: 0;
-            background: radial-gradient(130px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 200, 255, 0.2), transparent 100%);
-            opacity: 0; transition: opacity 0.3s ease;
-        }
-
-        .glass-element::after {
-            content: ''; position: absolute; inset: -1px;
-            border-radius: inherit; padding: 2px;
-            background: radial-gradient(100px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 180, 255, 0.7) 0%, rgba(0, 100, 255, 0.3) 50%, transparent 100%);
-            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-            -webkit-mask-composite: xor; mask-composite: exclude;
-            pointer-events: none; z-index: 5; opacity: 0; 
-            transition: opacity 0.3s ease;
-        }
-
-        .glass-element:hover { background: rgba(8, 12, 22, 0.45); }
-        .glass-element:hover .glass-glow::before, .glass-element:hover::after { opacity: 1; }
-
-        .glass-element:active {
-            transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(0.96) translateY(3px) !important;
-            background: rgba(4, 6, 10, 0.98) !important; 
-        }
-        .glass-element:active .glass-glow::before { opacity: 0 !important; }
-        .glass-element:active::after { opacity: 0.2 !important; }
-
-        /* 4. ВКЛАДКИ И КАПСУЛА */
-        .tabs-glass {
-            background: rgba(12, 18, 28, 0.6); 
-            padding: 5px; 
-            margin-bottom: 25px;
-            display: flex; align-items: center;
-        }
-        .auth-tabs { display: flex; width: 100%; position: relative; z-index: 2; }
-        
-        .tab { 
-            flex: 1; padding: 12px 0; cursor: pointer; color: #5c7499; 
-            font-weight: 600; font-size: 14px; text-align: center;
-            position: relative; z-index: 3; transition: color 0.3s ease;
-        }
-        .tab.active { color: #dbe5ff; text-shadow: 0 0 12px rgba(0, 180, 255, 0.5); }
-
-        .tab-slider {
-            position: absolute; 
-            top: 5px; bottom: 5px; 
-            left: 5px; width: calc(50% - 5px); 
-            background: rgba(0, 150, 255, 0.2);
-            border: 1px solid rgba(0, 180, 255, 0.35);
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 180, 255, 0.3), inset 0 0 10px rgba(0, 180, 255, 0.2);
-            z-index: 1; pointer-events: none;
-        }
-
-        /* 5. ПОЛЯ ВВОДА */
-        .auth-input { 
-            width: 100%; padding: 16px; 
-            background: transparent; border: none; 
-            color: #dbe5ff; outline: none; 
-            position: relative; z-index: 4; font-size: 15px;
-        }
-        .auth-input::placeholder { color: #435368; text-shadow: none; }
-
-        /* Контейнер плавного скрытия/появления никнейма при регистрации */
-        #reg-user-wrap {
-            max-height: 0; opacity: 0; overflow: hidden; margin: 0;
-            transition: max-height 0.4s ease, opacity 0.3s ease;
-        }
-        #reg-user-wrap.expanded { max-height: 100px; opacity: 1; }
-
-        .auth-btn {
-            padding: 16px; margin-top: 15px;
-            background: rgba(0, 140, 255, 0.15);
-            font-weight: 600; cursor: pointer; color: #dbe5ff; font-size: 16px;
-            display: flex; justify-content: center; align-items: center; border: none;
-        }
-        .auth-btn span { position: relative; z-index: 4; }
-
-        #auth-error { position: relative; z-index: 2; color: #ff5757; font-size: 14px; margin-top: 15px; min-height: 20px; text-align: center; }
-    </style>
+.auth-btn {
+    padding: 16px; margin-top: 15px;
+    background: rgba(0, 140, 255, 0.15);
+    font-weight: 600; cursor: pointer; color: #dbe5ff; font-size: 16px;
+    display: flex; justify-content: center; align-items: center; border: none;
+}
+.auth-btn span { position: relative; z-index: 4; }
+#auth-error { position: relative; z-index: 2; color: #ff5757; font-size: 14px; margin-top: 15px; min-height: 20px; text-align: center; }
+</style>
 </head>
 <body>
+<div id="bg-flow"></div>
+<div id="cursor-glow-bg"></div>
 
-    <div id="bg-flow"></div>
-    <div id="cursor-glow-bg"></div>
+<div id="auth-block">
+    <div id="panel-inner-glow"></div>
+    <h2>SAM Messenger</h2>
 
-    <div id="auth-block">
-        <div id="panel-inner-glow"></div>
+    <div class="glass-element tabs-glass">
+        <div class="glass-glow"></div>
+        <div class="tab-slider" id="tab-slider"></div>
+        <div class="auth-tabs">
+            <div id="tab-login" class="tab active" onclick="switchAuthTab('login')">Вход</div>
+            <div id="tab-reg" class="tab" onclick="switchAuthTab('register')">Регистрация</div>
+        </div>
+    </div>
 
-        <h2>SAM Messenger</h2>
-        
-        <div class="glass-element tabs-glass">
+    <!-- Имя пользователя (только регистрация) -->
+    <div id="reg-user-wrap">
+        <div class="glass-element">
             <div class="glass-glow"></div>
-            <div class="tab-slider" id="tab-slider"></div>
-            <div class="auth-tabs">
-                <div id="tab-login" class="tab active" onclick="switchAuthTab('login')">Вход</div>
-                <div id="tab-reg" class="tab" onclick="switchAuthTab('register')">Регистрация</div>
-            </div>
+            <input type="text" id="auth-user" class="auth-input" placeholder="Имя пользователя" autocomplete="off">
         </div>
+    </div>
 
-        <!-- Поле никнейма (показывается только при Регистрации) -->
-        <div id="reg-user-wrap">
-            <div class="glass-element">
-                <div class="glass-glow"></div>
-                <input type="text" id="auth-user" class="auth-input" placeholder="Имя пользователя" autocomplete="off">
-            </div>
-        </div>
+    <!-- Почта: при входе — просто почта, при регистрации — почта + кнопка "Код" -->
+    <div class="glass-element" style="display: flex; align-items: center;">
+        <div class="glass-glow"></div>
+        <input type="email" id="auth-email" class="auth-input" placeholder="Электронная почта" autocomplete="off" style="flex: 1;">
+        <button id="send-code-btn" onclick="requestCode(event)" style="display:none; position: relative; z-index: 6; background: none; border: none; color: #00aaff; cursor: pointer; padding: 0 20px; font-weight: bold; font-size: 14px; white-space: nowrap; height: 100%;">
+            Код
+        </button>
+    </div>
 
-        <!-- Поле Почты с интерактивной кнопкой запроса кода -->
-        <div class="glass-element" style="display: flex; align-items: center;">
-            <div class="glass-glow"></div>
-            <input type="email" id="auth-email" class="auth-input" placeholder="Электронная почта" autocomplete="off" style="flex: 1;">
-            <button id="send-code-btn" onclick="requestCode(event)" style="position: relative; z-index: 6; background: none; border: none; color: #00aaff; cursor: pointer; padding: 0 20px; font-weight: bold; font-size: 14px; white-space: nowrap; height: 100%;">
-                Код
-            </button>
-        </div>
-
-        <!-- Поле Одноразового Кода -->
+    <!-- Код подтверждения из письма (только регистрация) -->
+    <div id="reg-code-wrap">
         <div class="glass-element">
             <div class="glass-glow"></div>
             <input type="text" id="auth-code" class="auth-input" placeholder="Код подтверждения" autocomplete="off">
         </div>
-
-        <button class="auth-btn glass-element" onclick="submitAuth()">
-            <div class="glass-glow"></div>
-            <span id="btn-text">Войти в систему</span>
-        </button>
-        
-        <div id="auth-error"></div>
     </div>
 
-    <script>
-        // --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET (С АВТО-ПЕРЕПОДКЛЮЧЕНИЕМ) ---
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        let ws;
-        let currentAuthAction = 'login';
-        let reconnectAttempts = 0;
-        let reconnectTimer = null;
+    <!-- Пароль (и вход, и регистрация) -->
+    <div class="glass-element">
+        <div class="glass-glow"></div>
+        <input type="password" id="auth-password" class="auth-input" placeholder="Пароль" autocomplete="off">
+    </div>
 
-        function connectWS() {
-            ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
-            const errorEl = document.getElementById('auth-error');
+    <!-- Подтверждение пароля (только регистрация) -->
+    <div id="reg-pass2-wrap">
+        <div class="glass-element">
+            <div class="glass-glow"></div>
+            <input type="password" id="auth-password2" class="auth-input" placeholder="Повторите пароль" autocomplete="off">
+        </div>
+    </div>
 
-            ws.onopen = function() {
-                reconnectAttempts = 0;
-                if (errorEl.dataset.reconnecting === '1') {
-                    errorEl.style.color = '#57ff57';
-                    errorEl.textContent = 'Соединение восстановлено!';
-                    errorEl.dataset.reconnecting = '0';
-                    setTimeout(() => { if (errorEl.dataset.reconnecting !== '1') errorEl.textContent = ''; }, 2000);
-                }
-            };
+    <button class="auth-btn glass-element" onclick="submitAuth()">
+        <div class="glass-glow"></div>
+        <span id="btn-text">Войти в систему</span>
+    </button>
 
-            ws.onmessage = function(event) {
-                const data = JSON.parse(event.data);
+    <div id="auth-error"></div>
+</div>
 
-                if (data.type === 'auth_result') {
-                    if (data.success) {
-                        localStorage.setItem('sam_username', data.username);
-                        localStorage.setItem('sam_token', data.token);
-                        window.location.href = '/chat';
-                    } else {
-                        errorEl.style.color = '#ff5757';
-                        errorEl.textContent = data.error;
-                    }
-                } 
-                // Обработка успешной генерации и отправки кода
-                else if (data.type === 'code_sent') {
-                    errorEl.style.color = '#57ff57'; // Зеленый цвет для информирования
-                    errorEl.textContent = data.text;
-                    resetCodeButtonCooldown();
-                }
-                // Ошибки бэкенда при генерации
-                else if (data.type === 'auth_error') {
-                    errorEl.style.color = '#ff5757';
-                    errorEl.textContent = data.text;
-                }
-            };
+<script>
+// --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET (С АВТО-ПЕРЕПОДКЛЮЧЕНИЕМ) ---
+const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+let ws;
+let currentAuthAction = 'login';
+let reconnectAttempts = 0;
+let reconnectTimer = null;
 
-            ws.onclose = function() {
-                errorEl.dataset.reconnecting = '1';
-                errorEl.style.color = '#ffb020';
-                errorEl.textContent = 'Соединение с сервером потеряно, переподключаюсь...';
-                reconnectAttempts++;
-                const delay = Math.min(1000 * reconnectAttempts, 8000);
-                clearTimeout(reconnectTimer);
-                reconnectTimer = setTimeout(connectWS, delay);
-            };
+function connectWS() {
+    ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+    const errorEl = document.getElementById('auth-error');
 
-            ws.onerror = function() {
-                ws.close();
-            };
+    ws.onopen = function() {
+        reconnectAttempts = 0;
+        if (errorEl.dataset.reconnecting === '1') {
+            errorEl.style.color = '#57ff57';
+            errorEl.textContent = 'Соединение восстановлено!';
+            errorEl.dataset.reconnecting = '0';
+            setTimeout(() => { if (errorEl.dataset.reconnecting !== '1') errorEl.textContent = ''; }, 2000);
         }
-        connectWS();
+    };
 
-        // --- ЗАПРОС КОДА НА ПОЧТУ ЧЕРЕЗ WS ---
-        function requestCode(event) {
-            if (event) event.stopPropagation(); // Исключаем срабатывание клика по контейнеру glass-element
-            
-            const email = document.getElementById('auth-email').value.trim();
-            const errorEl = document.getElementById('auth-error');
+    ws.onmessage = function(event) {
+        const data = JSON.parse(event.data);
 
-            if (!email) {
-                errorEl.style.color = '#ff5757';
-                errorEl.textContent = 'Сначала введите адрес электронной почты!';
-                return;
-            }
-
-            if (ws.readyState === WebSocket.OPEN) {
-                errorEl.style.color = '#a3cfff';
-                errorEl.textContent = 'Отправка запроса...';
-                ws.send(JSON.stringify({ action: 'request_code', email: email }));
+        if (data.type === 'auth_result') {
+            if (data.success) {
+                localStorage.setItem('sam_username', data.username);
+                localStorage.setItem('sam_token', data.token);
+                window.location.href = '/chat';
             } else {
                 errorEl.style.color = '#ff5757';
-                errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
+                errorEl.textContent = data.error;
             }
         }
-
-        // Таймер защиты от спама на кнопке
-        function resetCodeButtonCooldown() {
-            const btn = document.getElementById('send-code-btn');
-            btn.disabled = true;
-            let timeLeft = 30;
-            
-            const timer = setInterval(() => {
-                if (timeLeft <= 0) {
-                    clearInterval(timer);
-                    btn.innerText = "Код";
-                    btn.disabled = false;
-                    btn.style.color = "#00aaff";
-                } else {
-                    btn.style.color = "#435368";
-                    btn.innerText = `${timeLeft}с`;
-                    timeLeft--;
-                }
-            }, 1000);
+        else if (data.type === 'code_sent') {
+            errorEl.style.color = '#57ff57';
+            errorEl.textContent = data.text;
+            resetCodeButtonCooldown();
         }
-
-        // --- ОТПРАВКА ФОРМЫ (ВХОД ИЛИ РЕГИСТРАЦИЯ) ---
-        function submitAuth() {
-            const email = document.getElementById('auth-email').value.trim();
-            const code = document.getElementById('auth-code').value.trim();
-            const errorEl = document.getElementById('auth-error');
-
-            if (!email || !code) {
-                errorEl.style.color = '#ff5757';
-                errorEl.textContent = 'Заполните поля электронной почты и кода!';
-                return;
-            }
-
-            const payload = {
-                action: currentAuthAction,
-                email: email,
-                code: code
-            };
-
-            if (currentAuthAction === 'register') {
-                const username = document.getElementById('auth-user').value.trim();
-                if (!username) {
-                    errorEl.style.color = '#ff5757';
-                    errorEl.textContent = 'Укажите имя пользователя для регистрации!';
-                    return;
-                }
-                payload.username = username;
-            }
-
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(payload));
-            } else {
-                errorEl.style.color = '#ff5757';
-                errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
-            }
+        else if (data.type === 'auth_error') {
+            errorEl.style.color = '#ff5757';
+            errorEl.textContent = data.text;
         }
+    };
 
-        // --- АНИМАЦИЯ КАПСУЛЫ И СМЕНА ПОЛЕЙ ПРИ ПЕРЕКЛЮЧЕНИИ ВКЛАДОК ---
-        function switchAuthTab(type) {
-            if (currentAuthAction === type) return;
-            currentAuthAction = type;
-            
-            const slider = document.getElementById('tab-slider');
-            const isReg = type === 'register';
+    ws.onclose = function() {
+        errorEl.dataset.reconnecting = '1';
+        errorEl.style.color = '#ffb020';
+        errorEl.textContent = 'Соединение с сервером потеряно, переподключаюсь...';
+        reconnectAttempts++;
+        const delay = Math.min(1000 * reconnectAttempts, 8000);
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connectWS, delay);
+    };
 
-            slider.style.transition = 'left 0.15s ease-in, width 0.15s ease-in';
-            slider.style.left = '5px';
-            slider.style.width = 'calc(100% - 10px)';
+    ws.onerror = function() {
+        ws.close();
+    };
+}
+connectWS();
 
-            document.getElementById('tab-login').classList.toggle('active', !isReg);
-            document.getElementById('tab-reg').classList.toggle('active', isReg);
+// --- ЗАПРОС КОДА НА ПОЧТУ (только для регистрации) ---
+function requestCode(event) {
+    if (event) event.stopPropagation();
+    const email = document.getElementById('auth-email').value.trim();
+    const errorEl = document.getElementById('auth-error');
 
-            const regWrap = document.getElementById('reg-user-wrap');
-            if (isReg) regWrap.classList.add('expanded');
-            else regWrap.classList.remove('expanded');
+    if (!email) {
+        errorEl.style.color = '#ff5757';
+        errorEl.textContent = 'Сначала введите адрес электронной почты!';
+        return;
+    }
 
-            document.getElementById('btn-text').textContent = isReg ? 'Создать аккаунт' : 'Войти в систему';
-            document.getElementById('auth-error').textContent = '';
+    if (ws.readyState === WebSocket.OPEN) {
+        errorEl.style.color = '#a3cfff';
+        errorEl.textContent = 'Отправка запроса...';
+        ws.send(JSON.stringify({ action: 'request_code', email: email }));
+    } else {
+        errorEl.style.color = '#ff5757';
+        errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
+    }
+}
 
-            setTimeout(() => {
-                slider.style.transition = 'left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
-                slider.style.left = isReg ? '50%' : '5px';
-                slider.style.width = 'calc(50% - 5px)';
-            }, 150);
-        }
-
-        // --- ЭФФЕКТЫ СВЕЧЕНИЯ И 3D КУРСОР (только для устройств с мышью — экономим батарею на телефонах) ---
-        const isTouchDevice = window.matchMedia('(hover: none)').matches;
-        const authBlock = document.getElementById('auth-block');
-        const bgGlow = document.getElementById('cursor-glow-bg');
-        const innerGlow = document.getElementById('panel-inner-glow');
-        const glassElements = document.querySelectorAll('.glass-element');
-
-        if (isTouchDevice) {
-            bgGlow.style.display = 'none';
-            innerGlow.style.display = 'none';
+function resetCodeButtonCooldown() {
+    const btn = document.getElementById('send-code-btn');
+    btn.disabled = true;
+    let timeLeft = 30;
+    const timer = setInterval(() => {
+        if (timeLeft <= 0) {
+            clearInterval(timer);
+            btn.innerText = "Код";
+            btn.disabled = false;
+            btn.style.color = "#00aaff";
         } else {
-
-        let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
-        let glowX = mouseX, glowY = mouseY;
-        let blockCurrentX = 0, blockCurrentY = 0;
-        let blockTargetX = 0, blockTargetY = 0;
-        let isOverMainPanel = false;
-
-        authBlock.addEventListener('mouseenter', () => {
-            isOverMainPanel = true;
-            bgGlow.style.opacity = '0';
-            innerGlow.style.opacity = '1';
-        });
-        authBlock.addEventListener('mouseleave', () => {
-            isOverMainPanel = false;
-            bgGlow.style.opacity = '1';
-            innerGlow.style.opacity = '0';
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            mouseX = e.clientX; mouseY = e.clientY;
-            if (isOverMainPanel) {
-                blockTargetX = 0; blockTargetY = 0;
-            } else {
-                const centerX = window.innerWidth / 2;
-                const centerY = window.innerHeight / 2;
-                blockTargetX = ((centerY - mouseY) / centerY) * 12;
-                blockTargetY = ((mouseX - centerX) / centerX) * 12;
-            }
-        });
-
-        let elementsData = Array.from(glassElements).map(el => ({ el: el, tX: 0, tY: 0, cX: 0, cY: 0 }));
-
-        glassElements.forEach((el, index) => {
-            el.addEventListener('mouseleave', () => {
-                elementsData[index].tX = 0; elementsData[index].tY = 0;
-            });
-            el.addEventListener('mousemove', (e) => {
-                const rect = el.getBoundingClientRect();
-                const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-                
-                el.style.setProperty('--local-x', `${x}px`);
-                el.style.setProperty('--local-y', `${y}px`);
-
-                const dx = x - rect.width / 2; const dy = y - rect.height / 2;
-                elementsData[index].tX = (dx / (rect.width / 2)) * 4;
-                elementsData[index].tY = (dy / (rect.height / 2)) * 4;
-            });
-        });
-
-        function renderLoop() {
-            glowX += (mouseX - glowX) * 0.15;
-            glowY += (mouseY - glowY) * 0.15;
-            
-            bgGlow.style.left = `${glowX}px`; bgGlow.style.top = `${glowY}px`;
-            
-            if (isOverMainPanel) {
-                const rect = authBlock.getBoundingClientRect();
-                innerGlow.style.left = `${glowX - rect.left}px`;
-                innerGlow.style.top = `${glowY - rect.top}px`;
-            }
-
-            blockCurrentX += (blockTargetX - blockCurrentX) * 0.08;
-            blockCurrentY += (blockTargetY - blockCurrentY) * 0.08;
-            authBlock.style.transform = `rotateX(${blockCurrentX}deg) rotateY(${blockCurrentY}deg)`;
-
-            elementsData.forEach(data => {
-                data.cX += (data.tX - data.cX) * 0.1;
-                data.cY += (data.tY - data.cY) * 0.1;
-                data.el.style.setProperty('--translate-x', `${data.cX}px`);
-                data.el.style.setProperty('--translate-y', `${data.cY}px`);
-            });
-
-            requestAnimationFrame(renderLoop);
+            btn.style.color = "#435368";
+            btn.innerText = `${timeLeft}с`;
+            timeLeft--;
         }
-        requestAnimationFrame(renderLoop);
+    }, 1000);
+}
 
-        } // конец блока эффектов для устройств с мышью
-    </script>
+// --- ОТПРАВКА ФОРМЫ: ВХОД ПО ПАРОЛЮ / РЕГИСТРАЦИЯ ПО КОДУ+ПАРОЛЮ ---
+function submitAuth() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const errorEl = document.getElementById('auth-error');
+
+    if (!email || !password) {
+        errorEl.style.color = '#ff5757';
+        errorEl.textContent = 'Заполните почту и пароль!';
+        return;
+    }
+
+    let payload;
+
+    if (currentAuthAction === 'register') {
+        const username = document.getElementById('auth-user').value.trim();
+        const code = document.getElementById('auth-code').value.trim();
+        const password2 = document.getElementById('auth-password2').value;
+
+        if (!username) {
+            errorEl.style.color = '#ff5757';
+            errorEl.textContent = 'Укажите имя пользователя для регистрации!';
+            return;
+        }
+        if (!code) {
+            errorEl.style.color = '#ff5757';
+            errorEl.textContent = 'Введите код подтверждения из письма!';
+            return;
+        }
+        if (password.length < 6) {
+            errorEl.style.color = '#ff5757';
+            errorEl.textContent = 'Пароль должен быть не короче 6 символов!';
+            return;
+        }
+        if (password !== password2) {
+            errorEl.style.color = '#ff5757';
+            errorEl.textContent = 'Пароли не совпадают!';
+            return;
+        }
+
+        payload = { action: 'register', email: email, code: code, username: username, password: password };
+    } else {
+        payload = { action: 'login', email: email, password: password };
+    }
+
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+    } else {
+        errorEl.style.color = '#ff5757';
+        errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
+    }
+}
+
+// --- АНИМАЦИЯ КАПСУЛЫ И СМЕНА ПОЛЕЙ ПРИ ПЕРЕКЛЮЧЕНИИ ВКЛАДОК ---
+function switchAuthTab(type) {
+    if (currentAuthAction === type) return;
+    currentAuthAction = type;
+    const slider = document.getElementById('tab-slider');
+    const isReg = type === 'register';
+
+    slider.style.transition = 'left 0.15s ease-in, width 0.15s ease-in';
+    slider.style.left = '5px';
+    slider.style.width = 'calc(100% - 10px)';
+
+    document.getElementById('tab-login').classList.toggle('active', !isReg);
+    document.getElementById('tab-reg').classList.toggle('active', isReg);
+
+    document.getElementById('reg-user-wrap').classList.toggle('expanded', isReg);
+    document.getElementById('reg-code-wrap').classList.toggle('expanded', isReg);
+    document.getElementById('reg-pass2-wrap').classList.toggle('expanded', isReg);
+    document.getElementById('send-code-btn').style.display = isReg ? 'block' : 'none';
+
+    document.getElementById('btn-text').textContent = isReg ? 'Создать аккаунт' : 'Войти в систему';
+    document.getElementById('auth-error').textContent = '';
+
+    setTimeout(() => {
+        slider.style.transition = 'left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        slider.style.left = isReg ? '50%' : '5px';
+        slider.style.width = 'calc(50% - 5px)';
+    }, 150);
+}
+
+// --- ЭФФЕКТЫ СВЕЧЕНИЯ И 3D КУРСОР (только для устройств с мышью) ---
+const isTouchDevice = window.matchMedia('(hover: none)').matches;
+const authBlock = document.getElementById('auth-block');
+const bgGlow = document.getElementById('cursor-glow-bg');
+const innerGlow = document.getElementById('panel-inner-glow');
+const glassElements = document.querySelectorAll('.glass-element');
+
+if (isTouchDevice) {
+    bgGlow.style.display = 'none';
+    innerGlow.style.display = 'none';
+} else {
+    let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+    let glowX = mouseX, glowY = mouseY;
+    let blockCurrentX = 0, blockCurrentY = 0;
+    let blockTargetX = 0, blockTargetY = 0;
+    let isOverMainPanel = false;
+
+    authBlock.addEventListener('mouseenter', () => {
+        isOverMainPanel = true;
+        bgGlow.style.opacity = '0';
+        innerGlow.style.opacity = '1';
+    });
+    authBlock.addEventListener('mouseleave', () => {
+        isOverMainPanel = false;
+        bgGlow.style.opacity = '1';
+        innerGlow.style.opacity = '0';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX; mouseY = e.clientY;
+        if (isOverMainPanel) {
+            blockTargetX = 0; blockTargetY = 0;
+        } else {
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            blockTargetX = ((centerY - mouseY) / centerY) * 12;
+            blockTargetY = ((mouseX - centerX) / centerX) * 12;
+        }
+    });
+
+    let elementsData = Array.from(glassElements).map(el => ({ el: el, tX: 0, tY: 0, cX: 0, cY: 0 }));
+
+    glassElements.forEach((el, index) => {
+        el.addEventListener('mouseleave', () => {
+            elementsData[index].tX = 0; elementsData[index].tY = 0;
+        });
+        el.addEventListener('mousemove', (e) => {
+            const rect = el.getBoundingClientRect();
+            const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+            el.style.setProperty('--local-x', `${x}px`);
+            el.style.setProperty('--local-y', `${y}px`);
+            const dx = x - rect.width / 2; const dy = y - rect.height / 2;
+            elementsData[index].tX = (dx / (rect.width / 2)) * 4;
+            elementsData[index].tY = (dy / (rect.height / 2)) * 4;
+        });
+    });
+
+    function renderLoop() {
+        glowX += (mouseX - glowX) * 0.15;
+        glowY += (mouseY - glowY) * 0.15;
+        bgGlow.style.left = `${glowX}px`; bgGlow.style.top = `${glowY}px`;
+
+        if (isOverMainPanel) {
+            const rect = authBlock.getBoundingClientRect();
+            innerGlow.style.left = `${glowX - rect.left}px`;
+            innerGlow.style.top = `${glowY - rect.top}px`;
+        }
+
+        blockCurrentX += (blockTargetX - blockCurrentX) * 0.08;
+        blockCurrentY += (blockTargetY - blockCurrentY) * 0.08;
+        authBlock.style.transform = `rotateX(${blockCurrentX}deg) rotateY(${blockCurrentY}deg)`;
+
+        elementsData.forEach(data => {
+            data.cX += (data.tX - data.cX) * 0.1;
+            data.cY += (data.tY - data.cY) * 0.1;
+            data.el.style.setProperty('--translate-x', `${data.cX}px`);
+            data.el.style.setProperty('--translate-y', `${data.cY}px`);
+        });
+
+        requestAnimationFrame(renderLoop);
+    }
+    requestAnimationFrame(renderLoop);
+} // конец блока эффектов для устройств с мышью
+</script>
 </body>
 </html>
