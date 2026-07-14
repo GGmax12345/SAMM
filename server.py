@@ -24,6 +24,10 @@ routes = web.RouteTableDef()
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 UPLOAD_DIR = 'uploads'
 
+# Пароль администратора (аккаунт Grom). Задайте ADMIN_PASSWORD в Environment Variables на Render —
+# если переменная не задана, используется 'change_me_now' (это небезопасно, только для первого запуска).
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'change_me_now')
+
 # Исправление багов asyncio с сетью на Windows при локальном тестировании
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -155,15 +159,22 @@ async def init_db(app):
             )
         ''')
 
-        # Создание админа Grom (с временным паролем — обязательно смените после первого входа!)
+        # Создание/синхронизация админа Grom. Пароль берётся из переменной окружения ADMIN_PASSWORD
+        # и применяется при КАЖДОМ старте сервера — так что сменить пароль админа можно, просто
+        # обновив ADMIN_PASSWORD в Render Environment и передеплоив сервис.
+        if not os.environ.get('ADMIN_PASSWORD'):
+            print("ВНИМАНИЕ: переменная ADMIN_PASSWORD не задана — используется небезопасный пароль по умолчанию 'change_me_now'. Задайте ADMIN_PASSWORD в Render Environment!")
+
+        admin_password_hash = hash_password(ADMIN_PASSWORD)
         row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Grom'")
         if not row:
-            default_admin_password_hash = hash_password('change_me_now')
             await conn.execute(
                 "INSERT INTO users (username, email, role, password_hash) VALUES ($1, $2, $3, $4)",
-                'Grom', 'admin@sam.messenger', 'admin', default_admin_password_hash
+                'Grom', 'admin@sam.messenger', 'admin', admin_password_hash
             )
-            print("Создан аккаунт admin 'Grom' с временным паролем 'change_me_now' — смените его как можно скорее!")
+            print("Создан аккаунт admin 'Grom'.")
+        else:
+            await conn.execute("UPDATE users SET password_hash = $1 WHERE username = 'Grom'", admin_password_hash)
 
 
 async def finish_login(ws, pool, db_id, db_username, db_role, token):
