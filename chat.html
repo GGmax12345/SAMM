@@ -349,7 +349,7 @@
     <div id="main-app">
         <div id="side-menu-overlay" onclick="toggleMenu()"></div>
         <div id="side-menu">
-            <div class="menu-profile-header">
+            <div class="menu-profile-header" onclick="openProfileModal()" style="cursor: pointer;">
                 <div class="menu-avatar" id="menu-avatar-letter">U</div>
                 <div class="menu-name" id="menu-username">Username</div>
                 <div class="menu-status">SAM Личный кабинет</div>
@@ -392,7 +392,9 @@
  
         <div id="contacts-modal" class="modal-overlay">
             <div class="modal-box">
-                <h3>Выберите контакт</h3>
+                <h3>Контакты</h3>
+                <input type="text" id="contact-search-input" class="modal-input" placeholder="Найти пользователя и добавить..." oninput="handleContactSearchInput(this.value)" style="margin-bottom: 10px;">
+                <div id="contact-search-results" class="modal-list" style="display:none;"></div>
                 <div id="contacts-list" class="modal-list"></div>
                 <div class="modal-btns">
                     <button class="btn-cancel" onclick="closeModals()">Закрыть</button>
@@ -403,6 +405,7 @@
         <div id="add-member-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Добавить в группу</h3>
+                <input type="text" id="add-member-search-input" class="modal-input" placeholder="Введите имя пользователя..." oninput="handleAddMemberSearchInput(this.value)" style="margin-bottom: 10px;">
                 <div id="add-member-list" class="modal-list"></div>
                 <div class="modal-btns">
                     <button class="btn-cancel" onclick="closeModals()">Закрыть</button>
@@ -744,25 +747,24 @@
                 else if (data.type === 'new_group') {
                     addRoomToSidebar(data.name, false);
                 }
-                else if (data.type === 'user_list') {
-                    const targetId = (document.getElementById('add-member-modal').style.display === 'flex') ? 'add-member-list' : 'contacts-list';
-                    const listEl = document.getElementById(targetId);
-                    listEl.innerHTML = '';
-                    (data.users || []).forEach(user => {
-                        if (user === myUsername) return; 
-                        const div = document.createElement('div');
-                        div.className = 'modal-list-item';
-                        div.innerHTML = `<div class="avatar" style="width:30px;height:30px;font-size:14px;">${escapeHTML(user.charAt(0).toUpperCase())}</div> ${escapeHTML(user)}`;
-                        div.onclick = () => { 
-                            closeModals(); 
-                            if (targetId === 'add-member-list') {
-                                ws.send(JSON.stringify({ action: 'add_to_group', room: currentRoom, username: user }));
-                            } else {
-                                startPrivateChat(user); 
-                            }
-                        };
-                        listEl.appendChild(div);
-                    });
+                else if (data.type === 'contacts_list') {
+                    renderContactsList(data.contacts);
+                }
+                else if (data.type === 'contact_search_results') {
+                    if (activeUserSearchContext === 'add_member') {
+                        renderAddMemberSearchResults(data.results);
+                    } else {
+                        renderContactSearchResults(data.results);
+                    }
+                }
+                else if (data.type === 'contact_added') {
+                    document.getElementById('contact-search-input').value = '';
+                    document.getElementById('contact-search-results').style.display = 'none';
+                    document.getElementById('contact-search-results').innerHTML = '';
+                    ws.send(JSON.stringify({ action: 'get_contacts' }));
+                }
+                else if (data.type === 'contact_removed') {
+                    ws.send(JSON.stringify({ action: 'get_contacts' }));
                 }
                 else if (data.type === 'msg') {
                     let isPrivate = data.room.startsWith('PRIVATE|');
@@ -1042,15 +1044,111 @@
             }
         }
  
+        let activeUserSearchContext = 'contacts';
+        let contactSearchTimer = null;
+        let addMemberSearchTimer = null;
+
         function openContactsModal() {
             toggleMenu();
-            ws.send(JSON.stringify({ action: 'get_users' }));
+            document.getElementById('contact-search-input').value = '';
+            document.getElementById('contact-search-results').style.display = 'none';
+            document.getElementById('contact-search-results').innerHTML = '';
+            ws.send(JSON.stringify({ action: 'get_contacts' }));
             openModal('contacts-modal');
         }
- 
+
+        function handleContactSearchInput(value) {
+            activeUserSearchContext = 'contacts';
+            clearTimeout(contactSearchTimer);
+            const query = value.trim();
+            const resultsEl = document.getElementById('contact-search-results');
+            if (!query) {
+                resultsEl.style.display = 'none';
+                resultsEl.innerHTML = '';
+                return;
+            }
+            contactSearchTimer = setTimeout(() => {
+                ws.send(JSON.stringify({ action: 'search_users', query: query }));
+            }, 250);
+        }
+
+        function renderContactSearchResults(results) {
+            const resultsEl = document.getElementById('contact-search-results');
+            resultsEl.style.display = 'block';
+            resultsEl.innerHTML = '';
+            if (!results || results.length === 0) {
+                resultsEl.innerHTML = '<div style="padding:10px; color:#6e89b5; font-size:13.5px;">Никого не найдено</div>';
+                return;
+            }
+            results.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'modal-list-item';
+                div.innerHTML = `<div class="avatar" style="width:30px;height:30px;font-size:14px;">${escapeHTML(user.charAt(0).toUpperCase())}</div> ${escapeHTML(user)} <span style="margin-left:auto; color:#5ab0ff; font-weight:600; font-size:13px;">+ Добавить</span>`;
+                div.onclick = () => {
+                    ws.send(JSON.stringify({ action: 'add_contact', username: user }));
+                };
+                resultsEl.appendChild(div);
+            });
+        }
+
+        function renderContactsList(contacts) {
+            const listEl = document.getElementById('contacts-list');
+            listEl.innerHTML = '';
+            if (!contacts || contacts.length === 0) {
+                listEl.innerHTML = '<div style="padding:10px; color:#6e89b5; font-size:13.5px; text-align:center;">Пока нет контактов — найдите кого-нибудь выше</div>';
+                return;
+            }
+            contacts.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'modal-list-item';
+                div.innerHTML = `<div class="avatar" style="width:30px;height:30px;font-size:14px;">${escapeHTML(user.charAt(0).toUpperCase())}</div> <span style="flex-grow:1;">${escapeHTML(user)}</span> <span style="color:#ff6b6b; font-size:12px; cursor:pointer; padding: 4px 6px;">Удалить</span>`;
+                div.querySelector('span[style*="color:#ff6b6b"]').onclick = (e) => {
+                    e.stopPropagation();
+                    ws.send(JSON.stringify({ action: 'remove_contact', username: user }));
+                };
+                div.onclick = () => {
+                    closeModals();
+                    startPrivateChat(user);
+                };
+                listEl.appendChild(div);
+            });
+        }
+
         function openAddMemberModal() {
-            ws.send(JSON.stringify({ action: 'get_users' }));
+            activeUserSearchContext = 'add_member';
+            document.getElementById('add-member-search-input').value = '';
+            document.getElementById('add-member-list').innerHTML = '';
             openModal('add-member-modal');
+        }
+
+        function handleAddMemberSearchInput(value) {
+            activeUserSearchContext = 'add_member';
+            clearTimeout(addMemberSearchTimer);
+            const query = value.trim();
+            const listEl = document.getElementById('add-member-list');
+            if (!query) { listEl.innerHTML = ''; return; }
+            addMemberSearchTimer = setTimeout(() => {
+                ws.send(JSON.stringify({ action: 'search_users', query: query }));
+            }, 250);
+        }
+
+        function renderAddMemberSearchResults(results) {
+            const listEl = document.getElementById('add-member-list');
+            listEl.innerHTML = '';
+            if (!results || results.length === 0) {
+                listEl.innerHTML = '<div style="padding:10px; color:#6e89b5; font-size:13.5px;">Никого не найдено</div>';
+                return;
+            }
+            results.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'modal-list-item';
+                div.innerHTML = `<div class="avatar" style="width:30px;height:30px;font-size:14px;">${escapeHTML(user.charAt(0).toUpperCase())}</div> ${escapeHTML(user)}`;
+                div.onclick = () => {
+                    closeModals();
+                    ws.send(JSON.stringify({ action: 'add_to_group', room: currentRoom, username: user }));
+                };
+                listEl.appendChild(div);
+            });
         }
  
         function startPrivateChat(targetUser) {

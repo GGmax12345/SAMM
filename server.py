@@ -158,6 +158,13 @@ async def init_db(app):
                 UNIQUE(room_name, username)
             )
         ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS contacts (
+                owner_username TEXT NOT NULL,
+                contact_username TEXT NOT NULL,
+                UNIQUE(owner_username, contact_username)
+            )
+        ''')
 
         # Создание/синхронизация админа Grom. Пароль берётся из переменной окружения ADMIN_PASSWORD
         # и применяется при КАЖДОМ старте сервера — так что сменить пароль админа можно, просто
@@ -433,12 +440,58 @@ async def websocket_handler(request):
                     else:
                         await finish_login(ws, pool, row['id'], row['username'], row['role'], token)
 
-                elif action == 'get_users':
+                elif action == 'get_contacts':
                     if not sender_name:
                         continue
-                    users_rows = await pool.fetch("SELECT username FROM users WHERE username != $1", active_connections[ws]["username"])
-                    users = [r['username'] for r in users_rows]
-                    await ws.send_json({"type": "user_list", "users": users})
+                    rows = await pool.fetch(
+                        "SELECT contact_username FROM contacts WHERE owner_username = $1 ORDER BY contact_username",
+                        sender_name
+                    )
+                    contacts = [r['contact_username'] for r in rows]
+                    await ws.send_json({"type": "contacts_list", "contacts": contacts})
+
+                elif action == 'add_contact':
+                    if not sender_name:
+                        continue
+                    target = data.get('username', '').strip()
+                    if not target or target == sender_name:
+                        await ws.send_json({"type": "error_msg", "text": "Нельзя добавить себя в контакты!"})
+                        continue
+                    user_exists = await pool.fetchval("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)", target)
+                    if not user_exists:
+                        await ws.send_json({"type": "error_msg", "text": "Пользователь не найден!"})
+                        continue
+                    try:
+                        await pool.execute(
+                            "INSERT INTO contacts (owner_username, contact_username) VALUES ($1, $2)",
+                            sender_name, target
+                        )
+                        await ws.send_json({"type": "contact_added", "username": target})
+                    except asyncpg.UniqueViolationError:
+                        await ws.send_json({"type": "error_msg", "text": "Этот пользователь уже в контактах!"})
+
+                elif action == 'remove_contact':
+                    if not sender_name:
+                        continue
+                    target = data.get('username', '').strip()
+                    await pool.execute(
+                        "DELETE FROM contacts WHERE owner_username = $1 AND contact_username = $2",
+                        sender_name, target
+                    )
+                    await ws.send_json({"type": "contact_removed", "username": target})
+
+                elif action == 'search_users':
+                    if not sender_name:
+                        continue
+                    query = data.get('query', '').strip()
+                    if query:
+                        search_pattern = f"{query}%"
+                        rows = await pool.fetch(
+                            "SELECT username FROM users WHERE username ILIKE $1 AND username != $2 LIMIT 10",
+                            search_pattern, sender_name
+                        )
+                        results = [r['username'] for r in rows]
+                        await ws.send_json({"type": "contact_search_results", "results": results})
 
                 elif action == 'search':
                     query = data.get('query', '').strip()
