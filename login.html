@@ -184,7 +184,7 @@ body {
     <div id="reg-user-wrap">
         <div class="glass-element">
             <div class="glass-glow"></div>
-            <input type="text" id="auth-user" class="auth-input" placeholder="Имя пользователя" autocomplete="off">
+            <input type="text" id="auth-user" class="auth-input" placeholder="Например: Gr2_1" autocomplete="off" maxlength="32">
         </div>
     </div>
 
@@ -351,6 +351,11 @@ function submitAuth() {
         if (!username) {
             errorEl.style.color = '#ff5757';
             errorEl.textContent = 'Укажите имя пользователя для регистрации!';
+            return;
+        }
+        if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(username)) {
+            errorEl.style.color = '#ff5757';
+            errorEl.textContent = 'Имя пользователя: 4–32 символа, латиница/цифры/"_", начинается с буквы. Например: Gr2_1';
             return;
         }
         if (!code) {

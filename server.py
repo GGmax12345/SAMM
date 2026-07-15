@@ -6,11 +6,16 @@ import uuid
 import hashlib
 import sys
 import ssl
+import re
 import aiohttp
 from aiohttp import web
 import asyncpg
 from PIL import Image as PILImage
 import random
+
+# Формат имени пользователя (аккаунта) для поиска: начинается с буквы, дальше буквы/цифры/"_",
+# длина 4-32 символа. Пример: Gr2_1
+USERNAME_PATTERN = re.compile(r'^[A-Za-z][A-Za-z0-9_]{3,31}$')
 
 # Настройки Mail.ru для отправки писем
 # ВАЖНО: ниже НЕ должно быть реальных секретов в коде — задайте их в Environment Variables
@@ -369,6 +374,10 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Пароль должен быть не короче 6 символов!"})
                         continue
 
+                    if not USERNAME_PATTERN.match(username):
+                        await ws.send_json({"type": "auth_result", "success": False, "error": "Имя пользователя: 4-32 символа, латиница/цифры/\"_\", начинается с буквы. Например: Gr2_1"})
+                        continue
+
                     is_code_valid = await pool.fetchval(
                         "SELECT EXISTS(SELECT 1 FROM verification_codes WHERE email = $1 AND code = $2)",
                         email, code
@@ -545,6 +554,9 @@ async def websocket_handler(request):
                     if not old_username:
                         continue
                     if not new_username or new_username == old_username:
+                        continue
+                    if not USERNAME_PATTERN.match(new_username):
+                        await ws.send_json({"type": "error_msg", "text": "Имя пользователя: 4-32 символа, латиница/цифры/\"_\", начинается с буквы. Например: Gr2_1"})
                         continue
                     try:
                         async with pool.acquire() as transaction_conn:
