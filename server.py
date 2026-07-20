@@ -7,20 +7,61 @@ import hashlib
 import sys
 import ssl
 import re
+import secrets
+import string
+import base64
 import aiohttp
 from aiohttp import web
 import asyncpg
 from PIL import Image as PILImage
 import random
 
+# --- ШИФРОВАНИЕ ПОЛЕЙ ---
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.backends import default_backend
+
+ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY', '')
+if not ENCRYPTION_KEY:
+    print("ВНИМАНИЕ: ENCRYPTION_KEY не задан в окружении! Генерирую временный ключ...")
+    ENCRYPTION_KEY = uuid.uuid4().hex
+
+
+def _get_aes_cipher():
+    key = hashlib.sha256(ENCRYPTION_KEY.encode('utf-8')).digest()
+    iv = b'\x00' * 16  # фиксированный IV для детерминированного шифрования
+    return Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+
+
+def encrypt_field(text: str) -> str:
+    if not text:
+        return ""
+    padder = padding.PKCS7(128).padder()
+    data = padder.update(text.encode('utf-8')) + padder.finalize()
+    cipher = _get_aes_cipher()
+    encryptor = cipher.encryptor()
+    ct = encryptor.update(data) + encryptor.finalize()
+    return base64.b64encode(ct).decode('utf-8')
+
+
+def decrypt_field(text: str) -> str:
+    if not text:
+        return ""
+    try:
+        ct = base64.b64decode(text.encode('utf-8'))
+        cipher = _get_aes_cipher()
+        decryptor = cipher.decryptor()
+        data = decryptor.update(ct) + decryptor.finalize()
+        unpadder = padding.PKCS7(128).unpadder()
+        return (unpadder.update(data) + unpadder.finalize()).decode('utf-8')
+    except Exception:
+        return text
+
+
 # Формат имени пользователя (аккаунта) для поиска: начинается с буквы, дальше буквы/цифры/"_",
 # длина 4-32 символа. Пример: Gr2_1
 USERNAME_PATTERN = re.compile(r'^[A-Za-z][A-Za-z0-9_]{3,31}$')
 
-# Настройки Mail.ru для отправки писем
-# ВАЖНО: ниже НЕ должно быть реальных секретов в коде — задайте их в Environment Variables
-# на Render (EMAIL_USER, EMAIL_PASSWORD, DATABASE_URL). Если этот файл когда-либо был
-# опубликован с реальными значениями по умолчанию — срочно смените пароль от почты и от БД.
 MAILRU_USER = os.environ.get('EMAIL_USER', '')
 MAILRU_PASS = os.environ.get('EMAIL_PASSWORD', '')
 
@@ -29,11 +70,8 @@ routes = web.RouteTableDef()
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 UPLOAD_DIR = 'uploads'
 
-# Пароль администратора (аккаунт Grom). Задайте ADMIN_PASSWORD в Environment Variables на Render —
-# если переменная не задана, используется 'change_me_now' (это небезопасно, только для первого запуска).
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'change_me_now')
 
-# Исправление багов asyncio с сетью на Windows при локальном тестировании
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
@@ -47,8 +85,16 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 
+async def generate_user_id(pool, length=10):
+    alphabet = string.ascii_letters + string.digits
+    while True:
+        uid = ''.join(secrets.choice(alphabet) for _ in range(length))
+        exists = await pool.fetchval("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", uid)
+        if not exists:
+            return uid
+
+
 def get_ws_by_username(username):
-    """Поиск активного веб-сокета пользователя по его нику для звонков"""
     for ws, info in list(active_connections.items()):
         if info.get('username') == username:
             return ws
@@ -56,16 +102,10 @@ def get_ws_by_username(username):
 
 
 async def get_or_create_private_room(pool, room_str: str) -> str:
-    """
-    Принимает строку вида 'PRIVATE|User1|User2', находит или создает
-    для них комнату со случайным UUID и возвращает этот UUID.
-    """
     parts = room_str.split('|')
     if len(parts) != 3:
         return room_str
-
     user1, user2 = sorted([parts[1], parts[2]])
-
     row = await pool.fetchrow('''
         SELECT r.name FROM rooms r
         JOIN room_members rm1 ON r.name = rm1.room_name
@@ -74,7 +114,6 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
     ''', user1, user2)
     if row:
         return row['name']
-
     new_uuid = str(uuid.uuid4())
     await pool.execute("INSERT INTO rooms (name, type) VALUES ($1, 'private')", new_uuid)
     await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", new_uuid, user1)
@@ -127,7 +166,7 @@ async def init_db(app):
         ''')
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
+                id TEXT PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 role TEXT DEFAULT 'user',
@@ -136,7 +175,6 @@ async def init_db(app):
                 password_hash TEXT
             )
         ''')
-        # Миграции для БД, созданных до появления этих колонок
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS session_token TEXT')
         await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT')
 
@@ -144,7 +182,7 @@ async def init_db(app):
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL PRIMARY KEY,
                 room TEXT NOT NULL,
-                user_id INTEGER NOT NULL,
+                user_id TEXT NOT NULL,
                 content TEXT NOT NULL,
                 msg_type TEXT DEFAULT 'text',
                 timestamp TEXT NOT NULL
@@ -171,29 +209,22 @@ async def init_db(app):
             )
         ''')
 
-        # Создание/синхронизация админа Grom. Пароль берётся из переменной окружения ADMIN_PASSWORD
-        # и применяется при КАЖДОМ старте сервера — так что сменить пароль админа можно, просто
-        # обновив ADMIN_PASSWORD в Render Environment и передеплоив сервис.
         if not os.environ.get('ADMIN_PASSWORD'):
             print("ВНИМАНИЕ: переменная ADMIN_PASSWORD не задана — используется небезопасный пароль по умолчанию 'change_me_now'. Задайте ADMIN_PASSWORD в Render Environment!")
 
         admin_password_hash = hash_password(ADMIN_PASSWORD)
-        row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Grom'")
+        row = await conn.fetchrow("SELECT * FROM users WHERE username = $1", encrypt_field('Grom'))
         if not row:
             await conn.execute(
-                "INSERT INTO users (username, email, role, password_hash) VALUES ($1, $2, $3, $4)",
-                'Grom', 'admin@sam.messenger', 'admin', admin_password_hash
+                "INSERT INTO users (id, username, email, role, password_hash) VALUES ($1, $2, $3, $4, $5)",
+                'AdminGrom1', encrypt_field('Grom'), encrypt_field('admin@sam.messenger'), 'admin', admin_password_hash
             )
             print("Создан аккаунт admin 'Grom'.")
         else:
-            await conn.execute("UPDATE users SET password_hash = $1 WHERE username = 'Grom'", admin_password_hash)
+            await conn.execute("UPDATE users SET password_hash = $1 WHERE username = $2", admin_password_hash, encrypt_field('Grom'))
 
 
 async def finish_login(ws, pool, db_id, db_username, db_role, token):
-    """
-    Общая логика после успешной проверки личности (по паролю ИЛИ по токену устройства):
-    поднимает сессию на сокете и отправляет клиенту его комнаты/чаты.
-    """
     active_connections[ws]["username"] = db_username
     active_connections[ws]["user_id"] = db_id
     active_connections[ws]["role"] = db_role
@@ -234,7 +265,6 @@ def load_html(filename):
         return f.read()
 
 
-# --- МАРШРУТЫ ДЛЯ СТРАНИЦ (WEB ROUTES) ---
 @routes.get('/')
 async def index(request):
     return web.Response(text=load_html('login.html'), content_type='text/html')
@@ -255,29 +285,33 @@ async def apps_page(request):
     return web.Response(text=load_html('apps.html'), content_type='text/html')
 
 
-# --- ПОИСК ЧЕРЕЗ HTTP API (FETCH) ---
 @routes.get('/api/search')
 async def search_handler(request):
     query = request.query.get('q', '').strip()
     if not query:
         return web.json_response([])
     pool = request.app['db_pool']
-    search_pattern = f"{query}%"
     try:
-        users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
-        rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", search_pattern)
+        # Загружаем пользователей и фильтруем в Python (т.к. username зашифрован в БД)
+        users_rows = await pool.fetch("SELECT username AS name, 'user' AS type FROM users")
         results = []
         for r in users_rows:
-            results.append({"name": r['name'], "type": r['type']})
+            dec = decrypt_field(r['name'])
+            if dec.lower().startswith(query.lower()):
+                results.append({"name": dec, "type": "user"})
+            if len(results) >= 10:
+                break
+
+        rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", f"{query}%")
         for r in rooms_rows:
             results.append({"name": r['name'], "type": r['type']})
+
         return web.json_response(results)
     except Exception as e:
         print(f"Ошибка HTTP поиска: {e}")
         return web.json_response({"error": "Ошибка сервера при поиске"}, status=500)
 
 
-# --- ЗАГРУЗКА МЕДИАФАЙЛОВ ---
 @routes.post('/upload')
 async def upload_file(request):
     reader = await request.multipart()
@@ -323,7 +357,6 @@ async def upload_file(request):
     return web.json_response({"success": False, "error": "Файл не найден"})
 
 
-# --- ОБРАБОТКА WEBSOCKET ---
 @routes.get('/ws')
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
@@ -338,7 +371,6 @@ async def websocket_handler(request):
                 action = data.get('action')
                 sender_name = active_connections[ws]["username"]
 
-                # --- Запрос одноразового кода на почту (используется только для регистрации) ---
                 if action == 'request_code':
                     email = data.get('email', '').strip()
                     if not email:
@@ -359,7 +391,6 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "auth_error", "text": "Ошибка при отправке письма. Проверьте настройки SMTP."})
                     continue
 
-                # --- Регистрация: email + код подтверждения + имя пользователя + пароль ---
                 elif action == 'register':
                     email = data.get('email', '').strip()
                     code = data.get('code', '').strip()
@@ -389,16 +420,16 @@ async def websocket_handler(request):
                     try:
                         token = uuid.uuid4().hex
                         pw_hash = hash_password(password)
-                        user_id = await pool.fetchval(
-                            "INSERT INTO users (username, email, session_token, password_hash) VALUES ($1, $2, $3, $4) RETURNING id",
-                            username, email, token, pw_hash
+                        uid = await generate_user_id(pool)
+                        await pool.execute(
+                            "INSERT INTO users (id, username, email, session_token, password_hash) VALUES ($1, $2, $3, $4, $5)",
+                            uid, encrypt_field(username), encrypt_field(email), token, pw_hash
                         )
                         await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
-                        await finish_login(ws, pool, user_id, username, "user", token)
+                        await finish_login(ws, pool, uid, username, "user", token)
                     except asyncpg.UniqueViolationError:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Этот никнейм или email уже заняты!"})
 
-                # --- Вход: email + пароль (без одноразового кода) ---
                 elif action == 'login':
                     email = data.get('email', '').strip()
                     password = data.get('password', '')
@@ -409,22 +440,21 @@ async def websocket_handler(request):
 
                     row = await pool.fetchrow(
                         "SELECT id, username, role, is_banned, password_hash FROM users WHERE email = $1",
-                        email
+                        encrypt_field(email)
                     )
                     if not row:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден! Зарегистрируйтесь."})
                         continue
 
-                    db_id, db_username, db_role, is_banned, db_pw_hash = (
+                    db_id, db_username_enc, db_role, is_banned, db_pw_hash = (
                         row['id'], row['username'], row['role'], row['is_banned'], row['password_hash']
                     )
+                    db_username = decrypt_field(db_username_enc)
 
                     if is_banned:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                         continue
 
-                    # У аккаунтов, созданных до перехода на пароли, password_hash будет пустым —
-                    # им нужно задать пароль (например, через отдельную процедуру восстановления).
                     if not db_pw_hash or hash_password(password) != db_pw_hash:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Неверный пароль!"})
                         continue
@@ -434,20 +464,20 @@ async def websocket_handler(request):
                     await finish_login(ws, pool, db_id, db_username, db_role, token)
 
                 elif action == 'session_login':
-                    # Тихий повторный вход по сохранённому на устройстве токену — без пароля
                     username = data.get('username', '').strip()
                     token = data.get('token', '').strip()
                     if not username or not token:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Сессия недействительна, войдите заново.", "need_relogin": True})
                         continue
 
-                    row = await pool.fetchrow("SELECT id, username, role, is_banned, session_token FROM users WHERE username = $1", username)
+                    row = await pool.fetchrow("SELECT id, username, role, is_banned, session_token FROM users WHERE username = $1", encrypt_field(username))
                     if not row or row['session_token'] != token:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Сессия недействительна, войдите заново.", "need_relogin": True})
                     elif row['is_banned']:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                     else:
-                        await finish_login(ws, pool, row['id'], row['username'], row['role'], token)
+                        db_username = decrypt_field(row['username'])
+                        await finish_login(ws, pool, row['id'], db_username, row['role'], token)
 
                 elif action == 'get_contacts':
                     if not sender_name:
@@ -466,7 +496,7 @@ async def websocket_handler(request):
                     if not target or target == sender_name:
                         await ws.send_json({"type": "error_msg", "text": "Нельзя добавить себя в контакты!"})
                         continue
-                    user_exists = await pool.fetchval("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)", target)
+                    user_exists = await pool.fetchval("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)", encrypt_field(target))
                     if not user_exists:
                         await ws.send_json({"type": "error_msg", "text": "Пользователь не найден!"})
                         continue
@@ -494,26 +524,33 @@ async def websocket_handler(request):
                         continue
                     query = data.get('query', '').strip()
                     if query:
-                        search_pattern = f"{query}%"
-                        rows = await pool.fetch(
-                            "SELECT username FROM users WHERE username ILIKE $1 AND username != $2 LIMIT 10",
-                            search_pattern, sender_name
-                        )
-                        results = [r['username'] for r in rows]
+                        rows = await pool.fetch("SELECT username FROM users LIMIT 200")
+                        results = []
+                        for r in rows:
+                            dec = decrypt_field(r['username'])
+                            if dec.lower().startswith(query.lower()) and dec != sender_name:
+                                results.append(dec)
+                            if len(results) >= 10:
+                                break
                         await ws.send_json({"type": "contact_search_results", "results": results})
 
                 elif action == 'search':
                     query = data.get('query', '').strip()
                     if query:
-                        search_pattern = f"{query}%"
                         try:
-                            users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
-                            rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", search_pattern)
+                            users_rows = await pool.fetch("SELECT username AS name, 'user' AS type FROM users LIMIT 200")
                             results = []
                             for r in users_rows:
-                                results.append({"name": r['name'], "type": r['type']})
+                                dec = decrypt_field(r['name'])
+                                if dec.lower().startswith(query.lower()):
+                                    results.append({"name": dec, "type": "user"})
+                                if len(results) >= 10:
+                                    break
+
+                            rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", f"{query}%")
                             for r in rooms_rows:
                                 results.append({"name": r['name'], "type": r['type']})
+
                             await ws.send_json({"type": "search_results", "results": results})
                         except Exception as e:
                             print(f"Ошибка WebSocket поиска: {e}")
@@ -561,7 +598,7 @@ async def websocket_handler(request):
                     try:
                         async with pool.acquire() as transaction_conn:
                             async with transaction_conn.transaction():
-                                await transaction_conn.execute("UPDATE users SET username = $1 WHERE username = $2", new_username, old_username)
+                                await transaction_conn.execute("UPDATE users SET username = $1 WHERE username = $2", encrypt_field(new_username), encrypt_field(old_username))
                                 await transaction_conn.execute("UPDATE room_members SET username = $1 WHERE username = $2", new_username, old_username)
                         active_connections[ws]["username"] = new_username
                         await ws.send_json({"type": "nickname_changed", "new_name": new_username})
@@ -583,7 +620,7 @@ async def websocket_handler(request):
 
                     time_str = datetime.datetime.now().strftime("%H:%M")
 
-                    res = await pool.fetchrow("SELECT is_banned FROM users WHERE username = $1", user_info["username"])
+                    res = await pool.fetchrow("SELECT is_banned FROM users WHERE username = $1", encrypt_field(user_info["username"]))
                     if res and res['is_banned'] == 1:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены!"})
                         continue
@@ -641,7 +678,12 @@ async def websocket_handler(request):
                         LIMIT 100
                     ''', db_room)
                     for r in history_rows:
-                        await ws.send_json({"type": "msg", "id": r['id'], "room": room, "username": r['username'], "content": r['content'], "msg_type": r['msg_type'], "time": r['timestamp'], "history": True})
+                        await ws.send_json({
+                            "type": "msg", "id": r['id'], "room": room,
+                            "username": decrypt_field(r['username']),
+                            "content": r['content'], "msg_type": r['msg_type'],
+                            "time": r['timestamp'], "history": True
+                        })
 
                 elif action == 'delete_msg':
                     if active_connections[ws]["role"] == 'admin':
@@ -658,7 +700,7 @@ async def websocket_handler(request):
                         target_user = data.get('username')
                         if target_user == 'Grom':
                             continue
-                        await pool.execute("UPDATE users SET is_banned = 1 WHERE username = $1", target_user)
+                        await pool.execute("UPDATE users SET is_banned = 1 WHERE username = $1", encrypt_field(target_user))
                         for client, info in list(active_connections.items()):
                             if info["username"] == target_user:
                                 await client.send_json({"type": "banned"})
