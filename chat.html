@@ -45,10 +45,11 @@
             padding-bottom: env(safe-area-inset-bottom);
         }
         #side-menu.open { left: 0; }
-        .menu-profile-header { padding: 30px 20px; background: rgba(0, 140, 255, 0.08); border-bottom: 1px solid rgba(163, 191, 255, 0.08); }
+        .menu-profile-header { padding: 24px 20px 20px; background: rgba(0, 140, 255, 0.08); border-bottom: 1px solid rgba(163, 191, 255, 0.08); }
         .menu-avatar { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #00a0ff 0%, #0060d0 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; box-shadow: 0 0 14px rgba(0, 160, 255, 0.25); background-size: cover; background-position: center; }
-        .menu-name { font-weight: 600; color: #fff; font-size: 17px; text-shadow: 0 0 6px rgba(163, 191, 255, 0.15); }
-        .menu-status { font-size: 13px; color: #6e89b5; margin-top: 4px; font-weight: 500;}
+        .menu-nickname { font-weight: 700; color: #fff; font-size: 18px; text-shadow: 0 0 6px rgba(163, 191, 255, 0.15); line-height: 1.2; }
+        .menu-username { font-size: 13.5px; color: #5ab0ff; font-weight: 600; margin-top: 3px; }
+        .menu-status { font-size: 12.5px; color: #6e89b5; margin-top: 6px; font-weight: 500;}
         .menu-items { padding: 10px 0; flex-grow: 1; overflow-y: auto; }
         .menu-item { padding: 16px 20px; cursor: pointer; display: flex; align-items: center; gap: 15px; color: #dbe5ff; font-weight: 500; transition: background 0.2s ease; }
         .menu-item:hover { background: rgba(0, 150, 255, 0.1); }
@@ -76,6 +77,10 @@
         .room-item:active { background: rgba(0, 150, 255, 0.12); }
         .room-item.active { background: rgba(0, 150, 255, 0.14); box-shadow: inset 3px 0 0 rgba(0, 180, 255, 0.6); }
         
+        /* Стилизация Избранного */
+        .room-item.saved-chat-item { background: rgba(0, 140, 255, 0.05); }
+        .room-item.saved-chat-item .avatar { background: linear-gradient(135deg, #2b80ff 0%, #0050b3 100%); font-size: 22px; }
+
         .avatar-wrapper { position: relative; display: inline-block; flex-shrink: 0; }
         .avatar { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #1c7fd6 0%, #0a4f96 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; text-transform: uppercase; flex-shrink: 0; transition: transform 0.2s ease; box-shadow: 0 0 8px rgba(0, 140, 255, 0.15); background-size: cover; background-position: center; }
         .online-dot { 
@@ -87,8 +92,9 @@
         .room-item.online .online-dot { display: block; }
  
         .room-info { flex-grow: 1; min-width: 0; }
-        .room-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .room-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
         .room-name { font-weight: 600; color: #fff; font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .room-handle { font-size: 12px; color: #5ab0ff; font-weight: 500; margin-bottom: 2px; }
         .room-time { color: #6e89b5; font-size: 12px; font-weight: 500; }
         .room-preview { color: #6e89b5; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
@@ -106,8 +112,11 @@
         }
         
         .back-btn { display: none; font-size: 20px; color: #6e89b5; cursor: pointer; padding: 8px 12px 8px 4px; user-select: none; font-weight: bold; }
-        .chat-title { font-weight: 700; font-size: 16.5px; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        .chat-title-box { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
+        .chat-title { font-weight: 700; font-size: 16.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             background: linear-gradient(135deg, #ffffff 0%, #a3cfff 100%); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .chat-subtitle { font-size: 12px; color: #5ab0ff; font-weight: 500; }
+        
         .messages-container { flex-grow: 1; padding: 20px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; scrollbar-width: none; }
         .messages-container::-webkit-scrollbar { display: none; }
         
@@ -219,7 +228,7 @@
         .modal-box { 
             background: rgba(10, 16, 26, 0.75); backdrop-filter: blur(35px); -webkit-backdrop-filter: blur(35px);
             padding: 24px; border-radius: 16px; width: 100%; 
-            max-width: 340px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); 
+            max-width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); 
             transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             border: 1px solid rgba(163, 191, 255, 0.08);
         }
@@ -229,9 +238,9 @@
         .modal-list { max-height: 260px; overflow-y: auto; margin-bottom: 16px; }
         .modal-list-item { padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(163, 191, 255, 0.06); color: #dbe5ff; display: flex; align-items: center; gap: 12px; transition: background 0.15s; border-radius: 8px; }
         .modal-list-item:hover { background: rgba(0, 150, 255, 0.08); }
-        .modal-input { width: 100%; padding: 12px 14px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.08); color: #dbe5ff; border-radius: 10px; margin-bottom: 20px; outline: none; font-size: 16px; transition: border 0.2s, box-shadow 0.2s; }
+        .modal-input { width: 100%; padding: 12px 14px; background: rgba(12, 18, 30, 0.5); border: 1px solid rgba(163, 191, 255, 0.08); color: #dbe5ff; border-radius: 10px; margin-bottom: 14px; outline: none; font-size: 15px; transition: border 0.2s, box-shadow 0.2s; }
         .modal-input:focus { border-color: rgba(0, 180, 255, 0.45); box-shadow: 0 0 14px rgba(0, 160, 255, 0.15); }
-        .modal-btns { display: flex; justify-content: flex-end; gap: 10px; }
+        .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
         
         .btn-cancel { background: transparent; color: #6e89b5; border: none; cursor: pointer; padding: 10px 16px; font-weight: 600; font-size: 14px; }
         .btn-cancel:hover { color: #b0ccff; }
@@ -351,14 +360,16 @@
         <div id="side-menu">
             <div class="menu-profile-header" onclick="openProfileModal()" style="cursor: pointer;">
                 <div class="menu-avatar" id="menu-avatar-letter">U</div>
-                <div class="menu-name" id="menu-username">@Username</div>
-                <div class="menu-status">SAM Личный кабинет</div>
+                <div class="menu-nickname" id="menu-nickname">Имя Пользователя</div>
+                <div class="menu-username" id="menu-username">@username</div>
+                <div class="menu-status" id="menu-status">SAM Личный кабинет</div>
             </div>
             <div class="menu-items">
-                <div class="menu-item" onclick="window.location.href='/apps'"><span class="menu-icon">📥</span> Скачать приложение</div>
+                <div class="menu-item" onclick="openSavedMessages()"><span class="menu-icon">🔖</span> Избранное</div>
                 <div class="menu-item" onclick="openProfileModal()"><span class="menu-icon">✏️</span> Профиль и Аватарка</div>
                 <div class="menu-item" onclick="openCreateGroupModal()"><span class="menu-icon">👥</span> Создать группу</div>
                 <div class="menu-item" onclick="openContactsModal()"><span class="menu-icon">👤</span> Контакты</div>
+                <div class="menu-item" onclick="window.location.href='/apps'"><span class="menu-icon">📥</span> Скачать приложение</div>
                 <div class="menu-item" onclick="localStorage.clear(); window.location.href='/'"><span class="menu-icon">🚪</span> Выйти</div>
             </div>
         </div>
@@ -366,12 +377,18 @@
         <div id="profile-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Настройки профиля</h3>
-                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">Ваш никнейм:</label>
-                <input type="text" id="profile-nickname" class="modal-input" placeholder="Введите новый ник...">
-                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">URL-ссылка на аватарку:</label>
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 5px;">Никнейм (Отображаемое имя):</label>
+                <input type="text" id="profile-nickname" class="modal-input" placeholder="например: Александр">
+                
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 5px;">Имя пользователя (@username):</label>
+                <input type="text" id="profile-username" class="modal-input" placeholder="например: alex_sam">
+                
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 5px;">URL-ссылка на аватарку:</label>
                 <input type="text" id="profile-avatar-url" class="modal-input" placeholder="https://example.com/photo.jpg">
-                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">О себе (статус):</label>
+                
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 5px;">О себе (статус):</label>
                 <input type="text" id="profile-bio" class="modal-input" placeholder="Например: на связи ✌️" maxlength="70">
+                
                 <div class="modal-btns">
                     <button class="btn-cancel" onclick="closeModals()">Отмена</button>
                     <button class="btn-primary" onclick="confirmUpdateProfile()">Сохранить</button>
@@ -469,6 +486,17 @@
                     <input type="text" class="search-bar" placeholder="Поиск">
                 </div>
                 <div class="room-list" id="sidebar-room-list">
+                    <!-- Закрепленный чат Избранное -->
+                    <div class="room-item saved-chat-item" id="room-SAVED_MESSAGES" data-room-id="SAVED_MESSAGES" data-room-title="Избранное" onclick="openSavedMessages()">
+                        <div class="avatar-wrapper">
+                            <div class="avatar">🔖</div>
+                        </div>
+                        <div class="room-info">
+                            <div class="room-meta"><span class="room-name">Избранное</span><span class="room-time" id="t-SAVED_MESSAGES"></span></div>
+                            <div class="room-preview" id="p-SAVED_MESSAGES">Мои заметки и файлы</div>
+                        </div>
+                    </div>
+                    
                     <div id="chats-container"></div>
                     <div id="search-container" style="display: none;"></div>
                 </div>
@@ -479,7 +507,10 @@
                     <div class="back-btn" onclick="backToRoomList()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                     </div>
-                    <div class="chat-title" id="chat-title-top">Название чата</div>
+                    <div class="chat-title-box">
+                        <div class="chat-title" id="chat-title-top">Название чата</div>
+                        <div class="chat-subtitle" id="chat-subtitle-top"></div>
+                    </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <button id="gallery-btn" class="header-action-btn" onclick="openChatGallery()" title="Медиа чата">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
@@ -535,7 +566,7 @@
     </div>
  
     <script>
-        const u = localStorage.getItem('sam_username');
+        const u = localStorage.getItem('sam_username') || '';
         const t = localStorage.getItem('sam_token');
         if (!u || !t) { window.location.href = '/'; }
  
@@ -545,6 +576,7 @@
         let reconnectTimer = null;
         
         let myUsername = u;
+        let myNickname = localStorage.getItem('sam_nickname') || u;
         let myRole = 'user';
         let currentRoom = null;
         let currentChatPartner = null; 
@@ -560,7 +592,6 @@
         
         // --- КЛИЕНТСКОЕ ШИФРОВАНИЕ (E2EE) ---
         function getChatKey(roomName) {
-            // Генерируем уникальный детерминированный ключ для AES на основе хэша комнаты
             return CryptoJS.SHA256(roomName + "_sam_secure_salt_e2ee").toString();
         }
  
@@ -576,7 +607,7 @@
                 const key = getChatKey(roomName);
                 const bytes = CryptoJS.AES.decrypt(ciphertext, key);
                 const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
-                return decryptedText || ciphertext; // Возвращаем оригинал, если сообщение было отправлено до включения шифрования
+                return decryptedText || ciphertext;
             } catch (e) {
                 return ciphertext; 
             }
@@ -656,9 +687,8 @@
  
                 const speed = Math.min(Math.sqrt(vx * vx + vy * vy), 60);
                 const angle = Math.atan2(vy, vx) * 180 / Math.PI;
-                // "Шарик" тянется вдоль движения и сужается поперёк — чем резче рывок, тем сильнее эффект
-                const stretch = 1 + speed / 40;      // растяжение по direction движения
-                const squeeze = Math.max(1 - speed / 140, 0.55); // сужение поперёк (к курсору)
+                const stretch = 1 + speed / 40;
+                const squeeze = Math.max(1 - speed / 140, 0.55);
  
                 glow.style.left = gx + 'px'; glow.style.top = gy + 'px';
                 glow.style.transform = `translate(-50%, -50%) rotate(${angle}deg) scale(${stretch}, ${squeeze})`;
@@ -715,14 +745,19 @@
  
                 if (data.type === 'auth_result') {
                     if (data.success) {
-                        myUsername = data.username;
+                        myUsername = data.username || myUsername;
                         myRole = data.role;
+                        
+                        myNickname = localStorage.getItem('sam_nickname') || data.nickname || myUsername;
+                        
+                        document.getElementById('menu-nickname').textContent = myNickname;
                         document.getElementById('menu-username').textContent = '@' + myUsername;
+                        
                         const cachedBio = localStorage.getItem('sam_bio');
-                        if (cachedBio) document.querySelector('.menu-status').textContent = cachedBio;
+                        if (cachedBio) document.getElementById('menu-status').textContent = cachedBio;
                         
                         const cachedAvatar = data.avatar || localStorage.getItem('sam_avatar') || '';
-                        applyAvatarStyle(document.getElementById('menu-avatar-letter'), myUsername, cachedAvatar);
+                        applyAvatarStyle(document.getElementById('menu-avatar-letter'), myNickname, cachedAvatar);
                         
                         if (myRole === 'admin') document.getElementById('messages').classList.add('admin-active');
                     } else {
@@ -773,7 +808,9 @@
                         const parts = data.room.split('|');
                         targetTitle = parts[1] === myUsername ? parts[2] : parts[1];
                     }
-                    addRoomToSidebar(data.room, isPrivate, targetTitle);
+                    if (data.room !== 'SAVED_MESSAGES') {
+                        addRoomToSidebar(data.room, isPrivate, targetTitle);
+                    }
  
                     const previewEl = document.getElementById('p-' + data.room);
                     const timeEl = document.getElementById('t-' + data.room);
@@ -788,7 +825,7 @@
                     }
  
                     if (previewEl) {
-                        previewEl.textContent = `${data.username}: ${contentText}`;
+                        previewEl.textContent = `${data.nickname || data.username}: ${contentText}`;
                         if(timeEl) timeEl.textContent = data.time;
                     }
  
@@ -797,13 +834,13 @@
                     }
  
                     if (document.hidden && data.username !== myUsername) {
-                        let chatName = isPrivate ? `ЛС от ${data.username}` : `Группа: ${targetTitle}`;
-                        showNotification(chatName, `${data.username}: ${contentText}`);
+                        let chatName = isPrivate ? `ЛС от ${data.nickname || data.username}` : `Группа: ${targetTitle}`;
+                        showNotification(chatName, `${data.nickname || data.username}: ${contentText}`);
                     }
  
                     if (data.username !== myUsername && data.room !== currentRoom) {
-                        let chatName = isPrivate ? `ЛС от ${data.username}` : `Группа: ${targetTitle}`;
-                        triggerToast(chatName, `${data.username}: ${contentText}`);
+                        let chatName = isPrivate ? `ЛС от ${data.nickname || data.username}` : `Группа: ${targetTitle}`;
+                        triggerToast(chatName, `${data.nickname || data.username}: ${contentText}`);
                     }
                 }
                 else if (data.type === 'search_results') {
@@ -922,21 +959,21 @@
                 
                 const isUser = item.type === 'user';
                 const bgStr = isUser ? 'background:#b84343' : '';
-                const typeLabel = isUser ? 'Пользователь' : 'Группа';
- 
+                const typeLabel = isUser ? `@${item.username || item.name}` : 'Группа';
+
                 div.setAttribute('data-search-item', 'true');
                 div.setAttribute('data-item-type', item.type);
-                div.setAttribute('data-room-title', item.name);
+                div.setAttribute('data-room-title', item.nickname || item.name);
                 div.setAttribute('data-room-id', item.name);
                 if (isUser) div.setAttribute('data-peer-username', item.name);
  
                 div.innerHTML = `
                     <div class="avatar-wrapper">
-                        <div class="avatar" style="${bgStr}">${escapeHTML(item.name.charAt(0).toUpperCase())}</div>
+                        <div class="avatar" style="${bgStr}">${escapeHTML((item.nickname || item.name).charAt(0).toUpperCase())}</div>
                         <div class="online-dot"></div>
                     </div>
                     <div class="room-info">
-                        <div class="room-meta"><span class="room-name">${isUser ? '@' : ''}${escapeHTML(item.name)}</span></div>
+                        <div class="room-meta"><span class="room-name">${escapeHTML(item.nickname || item.name)}</span></div>
                         <div class="room-preview">${typeLabel}</div>
                     </div>
                 `;
@@ -960,7 +997,7 @@
                 document.querySelector('.search-bar').value = '';
  
                 if (itemType === 'user') {
-                    startPrivateChat(roomTitle);
+                    startPrivateChat(roomId);
                 } else {
                     addRoomToSidebar(roomId, false);
                     changeRoom(roomId, roomTitle);
@@ -970,6 +1007,13 @@
             }
         });
  
+        function openSavedMessages() {
+            if (document.getElementById('side-menu').classList.contains('open')) {
+                toggleMenu();
+            }
+            changeRoom('SAVED_MESSAGES', 'Избранное');
+        }
+
         function toggleMenu() {
             const menu = document.getElementById('side-menu');
             const overlay = document.getElementById('side-menu-overlay');
@@ -1001,32 +1045,40 @@
  
         function openProfileModal() {
             toggleMenu();
-            document.getElementById('profile-nickname').value = myUsername || '';
+            document.getElementById('profile-nickname').value = myNickname || myUsername;
+            document.getElementById('profile-username').value = myUsername || '';
             document.getElementById('profile-avatar-url').value = localStorage.getItem('sam_avatar') || '';
             document.getElementById('profile-bio').value = localStorage.getItem('sam_bio') || '';
             openModal('profile-modal');
         }
  
         function confirmUpdateProfile() {
-            const newName = document.getElementById('profile-nickname').value.trim();
+            const newNick = document.getElementById('profile-nickname').value.trim();
+            const newUsername = document.getElementById('profile-username').value.trim().replace(/^@/, '');
             const newAvatar = document.getElementById('profile-avatar-url').value.trim();
             const newBio = document.getElementById('profile-bio').value.trim();
             
-            if(!newName) return alert("Никнейм не может быть пустым!");
+            if(!newNick) return alert("Никнейм не может быть пустым!");
+            if(!newUsername) return alert("Имя пользователя (@username) не может быть пустым!");
  
-            localStorage.setItem('sam_username', newName);
+            localStorage.setItem('sam_nickname', newNick);
+            localStorage.setItem('sam_username', newUsername);
             localStorage.setItem('sam_avatar', newAvatar);
             localStorage.setItem('sam_bio', newBio);
             
-            myUsername = newName;
+            myNickname = newNick;
+            myUsername = newUsername;
+
+            document.getElementById('menu-nickname').textContent = myNickname;
             document.getElementById('menu-username').textContent = '@' + myUsername;
-            document.querySelector('.menu-status').textContent = newBio || 'SAM Личный кабинет';
-            applyAvatarStyle(document.getElementById('menu-avatar-letter'), myUsername, newAvatar);
+            document.getElementById('menu-status').textContent = newBio || 'SAM Личный кабинет';
+            applyAvatarStyle(document.getElementById('menu-avatar-letter'), myNickname, newAvatar);
             
             if(ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ 
                     action: 'update_profile', 
-                    username: newName, 
+                    nickname: newNick,
+                    username: newUsername, 
                     avatar: newAvatar 
                 }));
             }
@@ -1159,7 +1211,7 @@
         }
  
         function addRoomToSidebar(roomId, isPrivate, customTitle = null) {
-            if(renderedRooms.has(roomId)) return;
+            if(renderedRooms.has(roomId) || roomId === 'SAVED_MESSAGES') return;
             renderedRooms.add(roomId);
  
             const title = customTitle || roomId;
@@ -1179,7 +1231,8 @@
                     <div class="online-dot"></div>
                 </div>
                 <div class="room-info">
-                    <div class="room-meta"><span class="room-name">${isPrivate ? '@' : ''}${escapeHTML(title)}</span><span class="room-time" id="t-${roomId}"></span></div>
+                    <div class="room-meta"><span class="room-name">${escapeHTML(title)}</span><span class="room-time" id="t-${roomId}"></span></div>
+                    ${isPrivate ? `<div class="room-handle">@${escapeHTML(title)}</div>` : ''}
                     <div class="room-preview" id="p-${roomId}">Нет сообщений</div>
                 </div>
             `;
@@ -1205,19 +1258,28 @@
             
             document.getElementById('main-chat-header').style.display = 'flex';
             document.getElementById('main-input-panel').style.display = 'flex';
-            document.getElementById('chat-title-top').textContent = roomId.startsWith('PRIVATE|') ? ('@' + titleText) : titleText;
             
-            document.getElementById('messages').innerHTML = '<div style="text-align: center; color: #6e89b5; padding: 20px; font-size: 14.5px;">Загрузка сообщений...</div>';
- 
-            if (!roomId.startsWith('PRIVATE|')) {
-                document.getElementById('add-member-btn').style.display = 'block';
-                document.getElementById('call-user-btn').style.display = 'none'; 
+            if (roomId === 'SAVED_MESSAGES') {
+                document.getElementById('chat-title-top').textContent = 'Избранное';
+                document.getElementById('chat-subtitle-top').textContent = 'Ваше личное облако';
+                document.getElementById('add-member-btn').style.display = 'none';
+                document.getElementById('call-user-btn').style.display = 'none';
                 currentChatPartner = null;
-            } else {
+            } else if (roomId.startsWith('PRIVATE|')) {
+                document.getElementById('chat-title-top').textContent = titleText;
+                document.getElementById('chat-subtitle-top').textContent = '@' + titleText;
                 document.getElementById('add-member-btn').style.display = 'none';
                 document.getElementById('call-user-btn').style.display = 'block';
-                currentChatPartner = titleText; 
+                currentChatPartner = titleText;
+            } else {
+                document.getElementById('chat-title-top').textContent = titleText;
+                document.getElementById('chat-subtitle-top').textContent = 'Групповой чат';
+                document.getElementById('add-member-btn').style.display = 'block';
+                document.getElementById('call-user-btn').style.display = 'none';
+                currentChatPartner = null;
             }
+            
+            document.getElementById('messages').innerHTML = '<div style="text-align: center; color: #6e89b5; padding: 20px; font-size: 14.5px;">Загрузка сообщений...</div>';
             
             document.getElementById('layout-wrapper').classList.add('chat-open');
             ws.send(JSON.stringify({ action: 'join_room', room: roomId }));
@@ -1231,7 +1293,6 @@
             const input = document.getElementById('message-input');
             const text = input.value.trim();
             if (text && currentRoom) {
-                // Шифруем текст перед отправкой
                 const encryptedText = encryptData(text, currentRoom);
                 ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedText, msg_type: 'text' }));
                 input.value = '';
@@ -1251,7 +1312,6 @@
             .then(data => {
                 if (data.success) {
                     const contentPayload = { name: data.name, url: data.url };
-                    // Зашифровываем структуру метаданных файла для безопасности путей
                     const encryptedPayload = encryptData(JSON.stringify(contentPayload), currentRoom);
                     ws.send(JSON.stringify({ 
                         action: 'send_msg', 
@@ -1287,9 +1347,8 @@
             div.id = 'block-' + msg.id;
             div.className = 'msg-block' + (msg.msg_type === 'system' ? ' system-msg' : '');
             
-            let html = `<div class="msg-author">@${escapeHTML(msg.username)}</div><div class="msg-body" id="content-${msg.id}">`;
+            let html = `<div class="msg-author">${escapeHTML(msg.nickname || msg.username)}</div><div class="msg-body" id="content-${msg.id}">`;
             
-            // Расшифровка тела на клиенте
             const targetRoomKey = msg.room || currentRoom;
  
             if (msg.msg_type === 'text') {
@@ -1317,7 +1376,6 @@
                         html += `<br><a href="${encodeURI(fileData.url)}" download="${escapeHTML(fileData.name)}" class="download-btn">📥 Скачать</a>`;
                     }
                 } catch(e) {
-                    // Резервный вариант, если это старый незашифрованный JSON
                     try {
                         const fileData = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
                         if (msg.msg_type === 'image') html += `<img src="${encodeURI(fileData.url)}">`;
@@ -1478,152 +1536,38 @@
             }
             openModal('gallery-modal');
         }
- 
+
         // ==================== ЭМОДЗИ-ПАНЕЛЬ ====================
-        const EMOJI_LIST = "😀 😁 😂 🤣 😊 😍 😘 😉 😎 🤩 🥳 😇 🙂 🙃 😜 🤔 🤨 😐 😑 😶 🙄 😏 😴 🤤 😪 😷 🤒 🤕 🤢 🥵 🥶 😱 😨 😰 😢 😭 😤 😡 🤬 😳 🥺 😬 😅 😆 🙈 🙉 🙊 💀 👻 👽 🤖 🎃 😺 😹 😻 👍 👎 👌 ✌️ 🤞 🤟 🤙 👏 🙌 🙏 💪 🤝 👀 🧠 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💯 🔥 ✨ ⭐ 🎉 🎊 🎁 🎈 💤 💩 🍕 🍔 🍟 🌭 🍎 🍇 🍓 🍒 🍿 ☕ 🍺 🍾 ⚽ 🏀 🎮 🎲 🚀 ✈️ 🚗 🏠 💰 💎 🔔 📱 💻 ⚡ 🌈 ☀️ 🌙 ⭐ 🌧️ ❄️".split(' ');
- 
+        const EMOJI_LIST = ["😀", "😁", "😂", "🤣", "😊", "😍", "😘", "😉", "😎", "🤩", "🥳", "😇", "🙂", "🙃", "😜", "🤔", "🤨", "😐", "😑", "😶", "🙄", "😏", "😴", "🤤", "😪", "😷", "🤒", "🤕", "🤢", "🥵", "🥶", "😱", "😨", "😰", "😢", "😭", "😤", "😡", "🤬", "😳", "🥺", "😬", "😅", "👍", "👎", "👏", "🙌", "🔥", "❤️", "💖", "✨", "🎉", "🚀", "💡", "💯", "✅"];
+
         function initEmojiPicker() {
             const grid = document.getElementById('emoji-grid');
-            if (grid.childElementCount) return;
-            EMOJI_LIST.forEach(e => {
+            grid.innerHTML = '';
+            EMOJI_LIST.forEach(emoji => {
                 const span = document.createElement('span');
-                span.textContent = e;
+                span.textContent = emoji;
                 span.onclick = () => {
                     const input = document.getElementById('message-input');
-                    input.value += e;
+                    input.value += emoji;
                     input.focus();
                 };
                 grid.appendChild(span);
             });
         }
+        initEmojiPicker();
+
         function toggleEmojiPicker() {
-            initEmojiPicker();
-            document.getElementById('emoji-picker').classList.toggle('show');
+            const picker = document.getElementById('emoji-picker');
+            picker.classList.toggle('show');
         }
+
         document.addEventListener('click', (e) => {
             const picker = document.getElementById('emoji-picker');
             const btn = document.getElementById('emoji-btn');
-            if (picker && picker.classList.contains('show') && !picker.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+            if (picker.classList.contains('show') && !picker.contains(e.target) && !btn.contains(e.target)) {
                 picker.classList.remove('show');
             }
         });
- 
-        // ==================== ГОЛОСОВЫЕ СООБЩЕНИЯ (зажать микрофон) ====================
-        let voiceRecorder = null, voiceChunks = [], voiceStartTime = 0, voiceTimerInterval = null, voiceCancelled = false;
- 
-        function uploadAndSend(blob, filename, msgType) {
-            const formData = new FormData();
-            formData.append('file', new File([blob], filename, { type: blob.type }));
-            fetch('/upload', { method: 'POST', body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        const contentPayload = { name: data.name, url: data.url };
-                        const encryptedPayload = encryptData(JSON.stringify(contentPayload), currentRoom);
-                        ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedPayload, msg_type: msgType }));
-                    } else {
-                        alert("Ошибка загрузки: " + data.error);
-                    }
-                })
-                .catch(() => alert("Не удалось загрузить файл."));
-        }
- 
-        async function startVoiceRecording() {
-            if (!currentRoom) return;
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                voiceChunks = []; voiceCancelled = false;
-                voiceRecorder = new MediaRecorder(stream);
-                voiceRecorder.ondataavailable = (e) => voiceChunks.push(e.data);
-                voiceRecorder.onstop = () => {
-                    stream.getTracks().forEach(t => t.stop());
-                    document.getElementById('voice-recorder-bar').classList.remove('show');
-                    document.getElementById('mic-btn').classList.remove('recording');
-                    clearInterval(voiceTimerInterval);
-                    if (voiceCancelled || voiceChunks.length === 0) return;
-                    const blob = new Blob(voiceChunks, { type: 'audio/webm' });
-                    if (blob.size > 500) uploadAndSend(blob, `voice_${Date.now()}.webm`, 'voice');
-                };
-                voiceRecorder.start();
-                voiceStartTime = Date.now();
-                document.getElementById('voice-recorder-bar').classList.add('show');
-                document.getElementById('mic-btn').classList.add('recording');
-                voiceTimerInterval = setInterval(() => {
-                    const sec = Math.floor((Date.now() - voiceStartTime) / 1000);
-                    document.getElementById('rec-timer').textContent = `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
-                    if (sec >= 120) stopVoiceRecording(false);
-                }, 200);
-            } catch (err) {
-                alert("Нет доступа к микрофону");
-            }
-        }
-        function stopVoiceRecording(cancel) {
-            voiceCancelled = !!cancel;
-            if (voiceRecorder && voiceRecorder.state !== 'inactive') voiceRecorder.stop();
-        }
- 
-        (function setupMicButton() {
-            const btn = document.getElementById('mic-btn');
-            if (!btn) return;
-            let pressing = false;
-            const start = (e) => { e.preventDefault(); pressing = true; startVoiceRecording(); };
-            const end = () => { if (pressing) { pressing = false; stopVoiceRecording(false); } };
-            btn.addEventListener('mousedown', start);
-            btn.addEventListener('touchstart', start, { passive: false });
-            document.addEventListener('mouseup', end);
-            document.addEventListener('touchend', end);
-        })();
- 
-        // ==================== ВИДЕО-КРУЖОК (видео-заметка как в ТГ) ====================
-        let videoNoteStream = null, videoNoteRecorder = null, videoNoteChunks = [], videoNoteBlob = null;
- 
-        async function openVideoNoteModal() {
-            if (!currentRoom) return;
-            try {
-                videoNoteStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 480, height: 480 }, audio: true });
-                document.getElementById('video-note-preview').srcObject = videoNoteStream;
-                document.getElementById('video-note-send-btn').style.display = 'none';
-                document.getElementById('video-note-record-btn').classList.remove('recording');
-                document.getElementById('video-note-hint').textContent = 'Нажмите, чтобы начать запись (до 60 сек)';
-                openModal('video-note-modal');
-            } catch (err) {
-                alert("Нет доступа к камере");
-            }
-        }
-        function closeVideoNoteModal() {
-            if (videoNoteStream) videoNoteStream.getTracks().forEach(t => t.stop());
-            videoNoteStream = null; videoNoteBlob = null;
-            closeModals();
-        }
-        function toggleVideoNoteRecording() {
-            const btn = document.getElementById('video-note-record-btn');
-            if (btn.classList.contains('recording')) {
-                videoNoteRecorder.stop();
-                return;
-            }
-            videoNoteChunks = [];
-            videoNoteRecorder = new MediaRecorder(videoNoteStream, { mimeType: 'video/webm' });
-            videoNoteRecorder.ondataavailable = (e) => videoNoteChunks.push(e.data);
-            videoNoteRecorder.onstop = () => {
-                videoNoteBlob = new Blob(videoNoteChunks, { type: 'video/webm' });
-                const preview = document.getElementById('video-note-preview');
-                preview.srcObject = null;
-                preview.src = URL.createObjectURL(videoNoteBlob);
-                preview.muted = false; preview.loop = true; preview.play();
-                document.getElementById('video-note-send-btn').style.display = 'inline-block';
-                document.getElementById('video-note-hint').textContent = 'Готово! Можно отправить';
-                btn.classList.remove('recording');
-            };
-            videoNoteRecorder.start();
-            btn.classList.add('recording');
-            document.getElementById('video-note-hint').textContent = 'Идёт запись...';
-            setTimeout(() => { if (videoNoteRecorder && videoNoteRecorder.state === 'recording') videoNoteRecorder.stop(); }, 60000);
-        }
-        function sendVideoNote() {
-            if (!videoNoteBlob) return;
-            uploadAndSend(videoNoteBlob, `videonote_${Date.now()}.webm`, 'video_note');
-            closeVideoNoteModal();
-        }
     </script>
 </body>
 </html>

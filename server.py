@@ -179,7 +179,7 @@ async def init_db(app):
         if not row:
             await conn.execute(
                 "INSERT INTO users (id, username, email, role, password_hash) VALUES ($1, $2, $3, $4, $5)",
-                'AdminGrom1', 'Grom', hash_field('admin@sam.messenger'), 'admin', admin_password_hash
+                '1234890211', 'Grom', hash_field('admin@sam.messenger'), 'admin', admin_password_hash
             )
             print("Создан аккаунт admin 'Grom'.")
         else:
