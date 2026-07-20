@@ -9,57 +9,12 @@ import ssl
 import re
 import secrets
 import string
-import base64
 import aiohttp
 from aiohttp import web
 import asyncpg
 from PIL import Image as PILImage
 import random
 
-# --- ШИФРОВАНИЕ ПОЛЕЙ ---
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.backends import default_backend
-
-ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY', '')
-if not ENCRYPTION_KEY:
-    print("ВНИМАНИЕ: ENCRYPTION_KEY не задан в окружении! Генерирую временный ключ...")
-    ENCRYPTION_KEY = uuid.uuid4().hex
-
-
-def _get_aes_cipher():
-    key = hashlib.sha256(ENCRYPTION_KEY.encode('utf-8')).digest()
-    iv = b'\x00' * 16  # фиксированный IV для детерминированного шифрования
-    return Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-
-
-def encrypt_field(text: str) -> str:
-    if not text:
-        return ""
-    padder = padding.PKCS7(128).padder()
-    data = padder.update(text.encode('utf-8')) + padder.finalize()
-    cipher = _get_aes_cipher()
-    encryptor = cipher.encryptor()
-    ct = encryptor.update(data) + encryptor.finalize()
-    return base64.b64encode(ct).decode('utf-8')
-
-
-def decrypt_field(text: str) -> str:
-    if not text:
-        return ""
-    try:
-        ct = base64.b64decode(text.encode('utf-8'))
-        cipher = _get_aes_cipher()
-        decryptor = cipher.decryptor()
-        data = decryptor.update(ct) + decryptor.finalize()
-        unpadder = padding.PKCS7(128).unpadder()
-        return (unpadder.update(data) + unpadder.finalize()).decode('utf-8')
-    except Exception:
-        return text
-
-
-# Формат имени пользователя (аккаунта) для поиска: начинается с буквы, дальше буквы/цифры/"_",
-# длина 4-32 символа. Пример: Gr2_1
 USERNAME_PATTERN = re.compile(r'^[A-Za-z][A-Za-z0-9_]{3,31}$')
 
 MAILRU_USER = os.environ.get('EMAIL_USER', '')
@@ -85,6 +40,11 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 
+def hash_field(text: str) -> str:
+    """Детерминированный SHA-256 хеш для email."""
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
 async def generate_user_id(pool, length=10):
     alphabet = string.ascii_letters + string.digits
     while True:
@@ -106,6 +66,7 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
     if len(parts) != 3:
         return room_str
     user1, user2 = sorted([parts[1], parts[2]])
+
     row = await pool.fetchrow('''
         SELECT r.name FROM rooms r
         JOIN room_members rm1 ON r.name = rm1.room_name
@@ -114,6 +75,7 @@ async def get_or_create_private_room(pool, room_str: str) -> str:
     ''', user1, user2)
     if row:
         return row['name']
+
     new_uuid = str(uuid.uuid4())
     await pool.execute("INSERT INTO rooms (name, type) VALUES ($1, 'private')", new_uuid)
     await pool.execute("INSERT INTO room_members (room_name, username) VALUES ($1, $2)", new_uuid, user1)
@@ -213,15 +175,15 @@ async def init_db(app):
             print("ВНИМАНИЕ: переменная ADMIN_PASSWORD не задана — используется небезопасный пароль по умолчанию 'change_me_now'. Задайте ADMIN_PASSWORD в Render Environment!")
 
         admin_password_hash = hash_password(ADMIN_PASSWORD)
-        row = await conn.fetchrow("SELECT * FROM users WHERE username = $1", encrypt_field('Grom'))
+        row = await conn.fetchrow("SELECT * FROM users WHERE username = 'Grom'")
         if not row:
             await conn.execute(
                 "INSERT INTO users (id, username, email, role, password_hash) VALUES ($1, $2, $3, $4, $5)",
-                'AdminGrom1', encrypt_field('Grom'), encrypt_field('admin@sam.messenger'), 'admin', admin_password_hash
+                'AdminGrom1', 'Grom', hash_field('admin@sam.messenger'), 'admin', admin_password_hash
             )
             print("Создан аккаунт admin 'Grom'.")
         else:
-            await conn.execute("UPDATE users SET password_hash = $1 WHERE username = $2", admin_password_hash, encrypt_field('Grom'))
+            await conn.execute("UPDATE users SET password_hash = $1 WHERE username = 'Grom'", admin_password_hash)
 
 
 async def finish_login(ws, pool, db_id, db_username, db_role, token):
@@ -291,21 +253,15 @@ async def search_handler(request):
     if not query:
         return web.json_response([])
     pool = request.app['db_pool']
+    search_pattern = f"{query}%"
     try:
-        # Загружаем пользователей и фильтруем в Python (т.к. username зашифрован в БД)
-        users_rows = await pool.fetch("SELECT username AS name, 'user' AS type FROM users")
+        users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
+        rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", search_pattern)
         results = []
         for r in users_rows:
-            dec = decrypt_field(r['name'])
-            if dec.lower().startswith(query.lower()):
-                results.append({"name": dec, "type": "user"})
-            if len(results) >= 10:
-                break
-
-        rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", f"{query}%")
+            results.append({"name": r['name'], "type": r['type']})
         for r in rooms_rows:
             results.append({"name": r['name'], "type": r['type']})
-
         return web.json_response(results)
     except Exception as e:
         print(f"Ошибка HTTP поиска: {e}")
@@ -423,7 +379,7 @@ async def websocket_handler(request):
                         uid = await generate_user_id(pool)
                         await pool.execute(
                             "INSERT INTO users (id, username, email, session_token, password_hash) VALUES ($1, $2, $3, $4, $5)",
-                            uid, encrypt_field(username), encrypt_field(email), token, pw_hash
+                            uid, username, hash_field(email), token, pw_hash
                         )
                         await pool.execute("DELETE FROM verification_codes WHERE email = $1", email)
                         await finish_login(ws, pool, uid, username, "user", token)
@@ -440,16 +396,15 @@ async def websocket_handler(request):
 
                     row = await pool.fetchrow(
                         "SELECT id, username, role, is_banned, password_hash FROM users WHERE email = $1",
-                        encrypt_field(email)
+                        hash_field(email)
                     )
                     if not row:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Пользователь не найден! Зарегистрируйтесь."})
                         continue
 
-                    db_id, db_username_enc, db_role, is_banned, db_pw_hash = (
+                    db_id, db_username, db_role, is_banned, db_pw_hash = (
                         row['id'], row['username'], row['role'], row['is_banned'], row['password_hash']
                     )
-                    db_username = decrypt_field(db_username_enc)
 
                     if is_banned:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
@@ -470,14 +425,13 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Сессия недействительна, войдите заново.", "need_relogin": True})
                         continue
 
-                    row = await pool.fetchrow("SELECT id, username, role, is_banned, session_token FROM users WHERE username = $1", encrypt_field(username))
+                    row = await pool.fetchrow("SELECT id, username, role, is_banned, session_token FROM users WHERE username = $1", username)
                     if not row or row['session_token'] != token:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Сессия недействительна, войдите заново.", "need_relogin": True})
                     elif row['is_banned']:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                     else:
-                        db_username = decrypt_field(row['username'])
-                        await finish_login(ws, pool, row['id'], db_username, row['role'], token)
+                        await finish_login(ws, pool, row['id'], row['username'], row['role'], token)
 
                 elif action == 'get_contacts':
                     if not sender_name:
@@ -496,7 +450,7 @@ async def websocket_handler(request):
                     if not target or target == sender_name:
                         await ws.send_json({"type": "error_msg", "text": "Нельзя добавить себя в контакты!"})
                         continue
-                    user_exists = await pool.fetchval("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)", encrypt_field(target))
+                    user_exists = await pool.fetchval("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)", target)
                     if not user_exists:
                         await ws.send_json({"type": "error_msg", "text": "Пользователь не найден!"})
                         continue
@@ -524,33 +478,26 @@ async def websocket_handler(request):
                         continue
                     query = data.get('query', '').strip()
                     if query:
-                        rows = await pool.fetch("SELECT username FROM users LIMIT 200")
-                        results = []
-                        for r in rows:
-                            dec = decrypt_field(r['username'])
-                            if dec.lower().startswith(query.lower()) and dec != sender_name:
-                                results.append(dec)
-                            if len(results) >= 10:
-                                break
+                        search_pattern = f"{query}%"
+                        rows = await pool.fetch(
+                            "SELECT username FROM users WHERE username ILIKE $1 AND username != $2 LIMIT 10",
+                            search_pattern, sender_name
+                        )
+                        results = [r['username'] for r in rows]
                         await ws.send_json({"type": "contact_search_results", "results": results})
 
                 elif action == 'search':
                     query = data.get('query', '').strip()
                     if query:
+                        search_pattern = f"{query}%"
                         try:
-                            users_rows = await pool.fetch("SELECT username AS name, 'user' AS type FROM users LIMIT 200")
+                            users_rows = await pool.fetch("SELECT DISTINCT username AS name, 'user' AS type FROM users WHERE username ILIKE $1 LIMIT 10", search_pattern)
+                            rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", search_pattern)
                             results = []
                             for r in users_rows:
-                                dec = decrypt_field(r['name'])
-                                if dec.lower().startswith(query.lower()):
-                                    results.append({"name": dec, "type": "user"})
-                                if len(results) >= 10:
-                                    break
-
-                            rooms_rows = await pool.fetch("SELECT DISTINCT name AS name, 'group' AS type FROM rooms WHERE name ILIKE $1 AND type = 'group' LIMIT 10", f"{query}%")
+                                results.append({"name": r['name'], "type": r['type']})
                             for r in rooms_rows:
                                 results.append({"name": r['name'], "type": r['type']})
-
                             await ws.send_json({"type": "search_results", "results": results})
                         except Exception as e:
                             print(f"Ошибка WebSocket поиска: {e}")
@@ -598,7 +545,7 @@ async def websocket_handler(request):
                     try:
                         async with pool.acquire() as transaction_conn:
                             async with transaction_conn.transaction():
-                                await transaction_conn.execute("UPDATE users SET username = $1 WHERE username = $2", encrypt_field(new_username), encrypt_field(old_username))
+                                await transaction_conn.execute("UPDATE users SET username = $1 WHERE username = $2", new_username, old_username)
                                 await transaction_conn.execute("UPDATE room_members SET username = $1 WHERE username = $2", new_username, old_username)
                         active_connections[ws]["username"] = new_username
                         await ws.send_json({"type": "nickname_changed", "new_name": new_username})
@@ -620,7 +567,7 @@ async def websocket_handler(request):
 
                     time_str = datetime.datetime.now().strftime("%H:%M")
 
-                    res = await pool.fetchrow("SELECT is_banned FROM users WHERE username = $1", encrypt_field(user_info["username"]))
+                    res = await pool.fetchrow("SELECT is_banned FROM users WHERE username = $1", user_info["username"])
                     if res and res['is_banned'] == 1:
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены!"})
                         continue
@@ -678,12 +625,7 @@ async def websocket_handler(request):
                         LIMIT 100
                     ''', db_room)
                     for r in history_rows:
-                        await ws.send_json({
-                            "type": "msg", "id": r['id'], "room": room,
-                            "username": decrypt_field(r['username']),
-                            "content": r['content'], "msg_type": r['msg_type'],
-                            "time": r['timestamp'], "history": True
-                        })
+                        await ws.send_json({"type": "msg", "id": r['id'], "room": room, "username": r['username'], "content": r['content'], "msg_type": r['msg_type'], "time": r['timestamp'], "history": True})
 
                 elif action == 'delete_msg':
                     if active_connections[ws]["role"] == 'admin':
@@ -700,7 +642,7 @@ async def websocket_handler(request):
                         target_user = data.get('username')
                         if target_user == 'Grom':
                             continue
-                        await pool.execute("UPDATE users SET is_banned = 1 WHERE username = $1", encrypt_field(target_user))
+                        await pool.execute("UPDATE users SET is_banned = 1 WHERE username = $1", target_user)
                         for client, info in list(active_connections.items()):
                             if info["username"] == target_user:
                                 await client.send_json({"type": "banned"})
