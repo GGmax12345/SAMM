@@ -350,7 +350,29 @@
             .toast-notification.show {
                 transform: translateY(0) scale(1);
             }
+             }
+                .context-menu {
+            position: fixed;
+            display: none;
+            background: rgba(10, 16, 26, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(163, 191, 255, 0.15);
+            border-radius: 12px;
+            padding: 6px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            z-index: 9999;
+            min-width: 180px;
         }
+        .context-menu-item {
+            padding: 10px 14px;
+            color: #dbe5ff;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .context-menu-item:hover { background: rgba(0, 150, 255, 0.2); }
+        .context-menu-item.danger { color: #ff7b72; }
+        .context-menu-item.danger:hover { background: rgba(255, 87, 87, 0.2); }
     </style>
 </head>
 <body>
@@ -394,6 +416,13 @@
                     <button class="btn-primary" onclick="confirmUpdateProfile()">Сохранить</button>
                 </div>
             </div>
+        </div>
+                <!-- Контекстное меню -->
+        <div id="msg-context-menu" class="context-menu">
+            <div class="context-menu-item" onclick="ctxCopyText()"> Скопировать текст</div>
+            <div class="context-menu-item" onclick="ctxReply()"> Ответить</div>
+            <div class="context-menu-item" onclick="ctxSaveToFavorites()"> В Избранное</div>
+            <div class="context-menu-item danger" onclick="ctxDeleteMsg()"> Удалить</div>
         </div>
  
         <div id="group-modal" class="modal-overlay">
@@ -1568,6 +1597,60 @@
                 picker.classList.remove('show');
             }
         });
+        const ctxMenu = document.getElementById('msg-context-menu');
+let activeMsgData = null;
+
+// Слушаем правый клик по сообщениям
+document.addEventListener('contextmenu', function(e) {
+    const msgBlock = e.target.closest('.msg-block'); // <-- Сверь класс сообщения
+    if (!msgBlock) return;
+    
+    e.preventDefault();
+    
+    activeMsgData = {
+        id: msgBlock.dataset.msgId || msgBlock.id || null,
+        text: msgBlock.querySelector('.msg-body')?.innerText || msgBlock.innerText
+    };
+
+    ctxMenu.style.display = 'block';
+    ctxMenu.style.left = e.clientX + 'px';
+    ctxMenu.style.top = e.clientY + 'px';
+});
+
+// Закрываем меню при обычном клике в любое место
+document.addEventListener('click', () => { 
+    if (ctxMenu) ctxMenu.style.display = 'none'; 
+});
+
+// 1. Копировать
+function ctxCopyText() {
+    if (activeMsgData?.text) navigator.clipboard.writeText(activeMsgData.text);
+}
+
+// 2. Ответить
+function ctxReply() {
+    const input = document.getElementById('message-input'); // <-- Сверь ID инпута
+    if (input && activeMsgData?.text) {
+        input.value = `> ${activeMsgData.text}\n` + input.value;
+        input.focus();
+    }
+}
+
+// 3. Избранное
+function ctxSaveToFavorites() {
+    if (activeMsgData?.text) {
+        // Вставь сюда отправку сообщения в избранное:
+        ws.send(JSON.stringify({ action: 'send', room: 'SAVED', text: activeMsgData.text }));
+    }
+}
+
+// 4. Удалить
+function ctxDeleteMsg() {
+    if (activeMsgData?.id) {
+        // Вставь сюда команду удаления для сервера:
+        ws.send(JSON.stringify({ action: 'delete', id: activeMsgData.id }));
+    }
+}
     </script>
 </body>
 </html>
