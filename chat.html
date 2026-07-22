@@ -396,15 +396,21 @@
             </div>
         </div>
  
-                <div id="profile-modal" class="modal-overlay">
+        <div id="profile-modal" class="modal-overlay">
             <div class="modal-box">
                 <h3>Настройки профиля</h3>
-                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">Отображаемое имя (ник):</label>
-                <input type="text" id="profile-display-name" class="modal-input" placeholder="Например: Glebushka" maxlength="32">
-                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">URL-ссылка на аватарку:</label>
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 5px;">Никнейм (Отображаемое имя):</label>
+                <input type="text" id="profile-nickname" class="modal-input" placeholder="например: Александр">
+                
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 5px;">Имя пользователя (@username):</label>
+                <input type="text" id="profile-username" class="modal-input" placeholder="например: alex_sam">
+                
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 5px;">URL-ссылка на аватарку:</label>
                 <input type="text" id="profile-avatar-url" class="modal-input" placeholder="https://example.com/photo.jpg">
-                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 6px;">О себе (статус):</label>
+                
+                <label style="color: #6e89b5; font-size: 13px; display: block; margin-bottom: 5px;">О себе (статус):</label>
                 <input type="text" id="profile-bio" class="modal-input" placeholder="Например: на связи ✌️" maxlength="70">
+                
                 <div class="modal-btns">
                     <button class="btn-cancel" onclick="closeModals()">Отмена</button>
                     <button class="btn-primary" onclick="confirmUpdateProfile()">Сохранить</button>
@@ -613,7 +619,6 @@
         let iceCandidateQueue = []; 
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
         
-        
         // --- КЛИЕНТСКОЕ ШИФРОВАНИЕ (E2EE) ---
         function getChatKey(roomName) {
             return CryptoJS.SHA256(roomName + "_sam_secure_salt_e2ee").toString();
@@ -769,17 +774,19 @@
  
                 if (data.type === 'auth_result') {
                     if (data.success) {
-                        myUsername = data.username;
+                        myUsername = data.username || myUsername;
                         myRole = data.role;
-                        myDisplayName = data.display_name || data.username;
-                        localStorage.setItem('sam_display_name', myDisplayName);
+                        
+                        myNickname = localStorage.getItem('sam_nickname') || data.nickname || myUsername;
+                        
+                        document.getElementById('menu-nickname').textContent = myNickname;
                         document.getElementById('menu-username').textContent = '@' + myUsername;
-                        document.getElementById('menu-display-name').textContent = myDisplayName;
+                        
                         const cachedBio = localStorage.getItem('sam_bio');
                         if (cachedBio) document.getElementById('menu-status').textContent = cachedBio;
                         
                         const cachedAvatar = data.avatar || localStorage.getItem('sam_avatar') || '';
-                        applyAvatarStyle(document.getElementById('menu-avatar-letter'), myDisplayName, cachedAvatar);
+                        applyAvatarStyle(document.getElementById('menu-avatar-letter'), myNickname, cachedAvatar);
                         
                         if (myRole === 'admin') document.getElementById('messages').classList.add('admin-active');
                     } else {
@@ -788,9 +795,6 @@
                     }
                 }
                 else if (data.type === 'init_data') {
-                    if (data.saved_room) {
-                         addSavedRoom(data.saved_room);
-                        }
                     (data.groups || []).forEach(g => addRoomToSidebar(g, false));
                     (data.private_rooms || []).forEach(pr => {
                         const parts = pr.split('|');
@@ -1646,63 +1650,6 @@ function ctxDeleteMsg() {
         // Вставь сюда команду удаления для сервера:
         ws.send(JSON.stringify({ action: 'delete', id: activeMsgData.id }));
     }
-}
-
-// после объявления myUsername, myRole...
-let myDisplayName = localStorage.getItem('sam_display_name') || '';
-
-function openProfileModal() {
-    toggleMenu();
-    document.getElementById('profile-display-name').value = myDisplayName || myUsername;
-    document.getElementById('profile-avatar-url').value = localStorage.getItem('sam_avatar') || '';
-    document.getElementById('profile-bio').value = localStorage.getItem('sam_bio') || '';
-    openModal('profile-modal');
-}
-
-function confirmUpdateProfile() {
-    const newDisplay = document.getElementById('profile-display-name').value.trim();
-    const newAvatar = document.getElementById('profile-avatar-url').value.trim();
-    const newBio = document.getElementById('profile-bio').value.trim();
-    
-    if (!newDisplay) return alert("Имя не может быть пустым!");
-
-    localStorage.setItem('sam_display_name', newDisplay);
-    localStorage.setItem('sam_avatar', newAvatar);
-    localStorage.setItem('sam_bio', newBio);
-    
-    myDisplayName = newDisplay;
-    document.getElementById('menu-username').textContent = '@' + myUsername;
-    document.querySelector('.menu-status').textContent = newBio || 'SAM Личный кабинет';
-    applyAvatarStyle(document.getElementById('menu-avatar-letter'), myUsername, newAvatar);
-    
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ 
-            action: 'update_profile', 
-            display_name: newDisplay
-        }));
-    }
-    closeModals();
-}
-
-function addSavedRoom(roomId) {
-    if (renderedRooms.has(roomId)) return;
-    renderedRooms.add(roomId);
-    const div = document.createElement('div');
-    div.className = 'room-item';
-    div.id = 'room-' + roomId;
-    div.setAttribute('data-room-id', roomId);
-    div.setAttribute('data-room-title', 'Избранное');
-    div.setAttribute('data-search-item', 'false');
-    div.innerHTML = `
-        <div class="avatar-wrapper">
-            <div class="avatar" style="background:#2481cc; font-size:22px;">🔖</div>
-        </div>
-        <div class="room-info">
-            <div class="room-meta"><span class="room-name">Избранное</span><span class="room-time" id="t-${roomId}"></span></div>
-            <div class="room-preview" id="p-${roomId}">Ваши заметки</div>
-        </div>
-    `;
-    document.getElementById('chats-container').prepend(div);
 }
     </script>
 </body>
