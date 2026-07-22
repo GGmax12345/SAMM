@@ -163,6 +163,7 @@ body {
 #auth-error { position: relative; z-index: 2; color: #ff5757; font-size: 14px; margin-top: 15px; min-height: 20px; text-align: center; }
 </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<base target="_blank">
 </head>
 <body>
 <div id="bg-flow"></div>
@@ -263,15 +264,15 @@ function getDeviceName() {
 async function trySilentLogin() {
     const savedUserId = localStorage.getItem('sam_user_id');
     const savedUsername = localStorage.getItem('sam_username');
-    
+
     if (!savedUserId || !savedUsername) return false;
-    
+
     const deviceToken = generateDeviceToken();
-    
+
     return new Promise((resolve) => {
         const checkWs = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
         let resolved = false;
-        
+
         checkWs.onopen = () => {
             checkWs.send(JSON.stringify({
                 action: 'check_trusted_device',
@@ -279,7 +280,7 @@ async function trySilentLogin() {
                 device_token: deviceToken
             }));
         };
-        
+
         checkWs.onmessage = (event) => {
             if (resolved) return;
             const data = JSON.parse(event.data);
@@ -294,10 +295,10 @@ async function trySilentLogin() {
                 resolve(false);
             }
         };
-        
+
         checkWs.onerror = () => { if (!resolved) { resolved = true; resolve(false); } };
         checkWs.onclose = () => { if (!resolved) { resolved = true; resolve(false); } };
-        
+
         setTimeout(() => {
             if (!resolved) {
                 resolved = true;
@@ -312,6 +313,7 @@ async function trySilentLogin() {
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 let ws;
 let currentAuthAction = 'login';
+let pendingRedirect = false;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
 
@@ -337,20 +339,36 @@ function connectWS() {
                 localStorage.setItem('sam_user_id', data.user_id);
                 localStorage.setItem('sam_username', data.username);
                 localStorage.setItem('sam_token', data.token);
-                
-                // Если галочка "Запомнить устройство" — отправляем trust_device
+
+                // Если галочка "Запомнить устройство" — отправляем trust_device и ждём ответа
                 if (document.getElementById('trust-device-check').checked) {
+                    pendingRedirect = true;
+                    errorEl.style.color = '#57ff57';
+                    errorEl.textContent = 'Сохраняем устройство...';
                     ws.send(JSON.stringify({
                         action: 'trust_device',
                         device_token: generateDeviceToken(),
                         device_name: getDeviceName()
                     }));
+                    // На случай если ответ потеряется — редиректим через 1.5 сек
+                    setTimeout(() => {
+                        if (pendingRedirect) {
+                            pendingRedirect = false;
+                            window.location.href = '/chat';
+                        }
+                    }, 1500);
+                } else {
+                    window.location.href = '/chat';
                 }
-                
-                window.location.href = '/chat';
             } else {
                 errorEl.style.color = '#ff5757';
                 errorEl.textContent = data.error;
+            }
+        }
+        else if (data.type === 'device_trusted') {
+            if (pendingRedirect) {
+                pendingRedirect = false;
+                window.location.href = '/chat';
             }
         }
         else if (data.type === 'code_sent') {
@@ -378,6 +396,15 @@ function connectWS() {
         ws.close();
     };
 }
+// Пробуем тихий вход перед показом формы
+(async function init() {
+    const silentSuccess = await trySilentLogin();
+    document.getElementById('loading-screen').style.display = 'none';
+    if (!silentSuccess) {
+        document.getElementById('auth-block').style.display = 'block';
+        connectWS();
+    }
+})();
 
 // --- ЗАПРОС КОДА НА ПОЧТУ (только для регистрации) ---
 function requestCode(event) {
@@ -589,16 +616,6 @@ if (isTouchDevice) {
     }
     requestAnimationFrame(renderLoop);
 } // конец блока эффектов для устройств с мышью
-
-// Пробуем тихий вход перед показом формы
-(async function init() {
-    const silentSuccess = await trySilentLogin();
-    document.getElementById('loading-screen').style.display = 'none';
-    if (!silentSuccess) {
-        document.getElementById('auth-block').style.display = 'block';
-        connectWS();
-    }
-})();
 </script>
 </body>
 </html>

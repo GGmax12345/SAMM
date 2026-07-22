@@ -1665,12 +1665,19 @@ function ctxDeleteMsg() {
     }
 }
     function logout() {
+        // Обычный выход: удаляем только токен сессии, но устройство остаётся доверенным
+        // При следующем заходе на этом устройстве — автовход
+        localStorage.removeItem('sam_token');
+        window.location.href = '/';
+    }
+
+    function logoutAndForget() {
+        // Полный выход + удалить устройство из доверенных
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({
                 action: 'untrust_device',
                 device_token: generateDeviceToken()
             }));
-            // Даём серверу время обработать
             setTimeout(() => {
                 localStorage.clear();
                 window.location.href = '/';
