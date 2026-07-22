@@ -163,13 +163,21 @@ body {
 #auth-error { position: relative; z-index: 2; color: #ff5757; font-size: 14px; margin-top: 15px; min-height: 20px; text-align: center; }
 </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-<base target="_blank">
 </head>
 <body>
 <div id="bg-flow"></div>
 <div id="cursor-glow-bg"></div>
 
-<div id="auth-block">
+<div id="loading-screen" style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #5ab0ff; font-size: 16px; z-index: 100; gap: 16px;">
+    <svg width="40" height="40" viewBox="0 0 50 50" style="animation: spin 1s linear infinite;">
+        <circle cx="25" cy="25" r="20" fill="none" stroke="rgba(0,140,255,0.2)" stroke-width="4"/>
+        <circle cx="25" cy="25" r="20" fill="none" stroke="#2481cc" stroke-width="4" stroke-dasharray="60 40" stroke-linecap="round"/>
+    </svg>
+    <span style="color: #6e89b5; font-size: 14px;">Проверка устройства...</span>
+</div>
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+
+<div id="auth-block" style="display: none;">
     <div id="panel-inner-glow"></div>
     <h2>SAM Messenger</h2>
 
@@ -255,15 +263,15 @@ function getDeviceName() {
 async function trySilentLogin() {
     const savedUserId = localStorage.getItem('sam_user_id');
     const savedUsername = localStorage.getItem('sam_username');
-
+    
     if (!savedUserId || !savedUsername) return false;
-
+    
     const deviceToken = generateDeviceToken();
-
+    
     return new Promise((resolve) => {
         const checkWs = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
         let resolved = false;
-
+        
         checkWs.onopen = () => {
             checkWs.send(JSON.stringify({
                 action: 'check_trusted_device',
@@ -271,7 +279,7 @@ async function trySilentLogin() {
                 device_token: deviceToken
             }));
         };
-
+        
         checkWs.onmessage = (event) => {
             if (resolved) return;
             const data = JSON.parse(event.data);
@@ -286,10 +294,10 @@ async function trySilentLogin() {
                 resolve(false);
             }
         };
-
+        
         checkWs.onerror = () => { if (!resolved) { resolved = true; resolve(false); } };
         checkWs.onclose = () => { if (!resolved) { resolved = true; resolve(false); } };
-
+        
         setTimeout(() => {
             if (!resolved) {
                 resolved = true;
@@ -329,7 +337,7 @@ function connectWS() {
                 localStorage.setItem('sam_user_id', data.user_id);
                 localStorage.setItem('sam_username', data.username);
                 localStorage.setItem('sam_token', data.token);
-
+                
                 // Если галочка "Запомнить устройство" — отправляем trust_device
                 if (document.getElementById('trust-device-check').checked) {
                     ws.send(JSON.stringify({
@@ -338,7 +346,7 @@ function connectWS() {
                         device_name: getDeviceName()
                     }));
                 }
-
+                
                 window.location.href = '/chat';
             } else {
                 errorEl.style.color = '#ff5757';
@@ -370,13 +378,6 @@ function connectWS() {
         ws.close();
     };
 }
-// Пробуем тихий вход перед показом формы
-(async function init() {
-    const silentSuccess = await trySilentLogin();
-    if (!silentSuccess) {
-        connectWS();
-    }
-})();
 
 // --- ЗАПРОС КОДА НА ПОЧТУ (только для регистрации) ---
 function requestCode(event) {
@@ -588,6 +589,16 @@ if (isTouchDevice) {
     }
     requestAnimationFrame(renderLoop);
 } // конец блока эффектов для устройств с мышью
+
+// Пробуем тихий вход перед показом формы
+(async function init() {
+    const silentSuccess = await trySilentLogin();
+    document.getElementById('loading-screen').style.display = 'none';
+    if (!silentSuccess) {
+        document.getElementById('auth-block').style.display = 'block';
+        connectWS();
+    }
+})();
 </script>
 </body>
 </html>
