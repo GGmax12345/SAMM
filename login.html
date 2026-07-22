@@ -284,16 +284,31 @@ async function trySilentLogin() {
         checkWs.onmessage = (event) => {
             if (resolved) return;
             const data = JSON.parse(event.data);
-            if (data.type === 'device_check_result' && data.trusted) {
+
+            // Сервер сначала шлёт auth_result (из finish_login), потом device_check_result
+            if (data.type === 'auth_result' && data.success) {
                 resolved = true;
                 localStorage.setItem('sam_token', data.token);
                 window.location.href = '/chat';
                 resolve(true);
-            } else {
+            }
+            else if (data.type === 'device_check_result' && data.trusted) {
+                resolved = true;
+                localStorage.setItem('sam_token', data.token);
+                window.location.href = '/chat';
+                resolve(true);
+            }
+            else if (data.type === 'device_check_result' && !data.trusted) {
                 resolved = true;
                 checkWs.close();
                 resolve(false);
             }
+            else if (data.type === 'auth_result' && !data.success) {
+                resolved = true;
+                checkWs.close();
+                resolve(false);
+            }
+            // init_data и другие — игнорируем, ждём финального ответа
         };
 
         checkWs.onerror = () => { if (!resolved) { resolved = true; resolve(false); } };
