@@ -89,6 +89,7 @@
             box-shadow: 0 6px 18px rgba(36,129,204,0.35);
         }
         h3 { margin: 0 0 5px 0; color: #fff; font-size: clamp(17px, 4vw, 19px); }
+        .user-id { color: #5288c1; font-size: 13px; margin-bottom: clamp(20px, 5vw, 25px); font-family: monospace; }
         p { color: #7f91a4; margin-bottom: clamp(20px, 5vw, 25px); font-size: 13.5px; }
 
         .input-label {
@@ -147,10 +148,14 @@
         <div class="profile-card">
             <div class="profile-avatar" id="p-avatar">U</div>
             <h3 id="p-display-name">Username</h3>
+            <div class="user-id" id="p-user-id">id: 0000000000</div>
             <p>Изменение настроек аккаунта</p>
 
-            <label class="input-label">ИМЯ ПОЛЬЗОВАТЕЛЯ (НИК)</label>
-            <input type="text" id="nickname-input" class="profile-input" placeholder="Введите новый ник...">
+            <label class="input-label">ОТОБРАЖАЕМОЕ ИМЯ (НИК)</label>
+            <input type="text" id="display-name-input" class="profile-input" placeholder="Введите ник..." maxlength="32">
+
+            <label class="input-label">ИМЯ ПОЛЬЗОВАТЕЛЯ (ЮЗЕРНЕЙМ)</label>
+            <input type="text" id="nickname-input" class="profile-input" placeholder="Введите новый юзернейм..." disabled style="opacity:0.6;">
 
             <button class="btn-save" onclick="saveProfile()" data-ripple>Сохранить изменения</button>
             <a href="/chat" class="btn-back">← Назад к чатам</a>
@@ -160,10 +165,14 @@
     <script>
         const u = localStorage.getItem('sam_username');
         const t = localStorage.getItem('sam_token');
+        const uid = localStorage.getItem('sam_user_id');
+        const dname = localStorage.getItem('sam_display_name') || u;
         if (!u || !t) window.location.href = '/';
 
-        document.getElementById('p-display-name').textContent = u;
-        document.getElementById('p-avatar').textContent = u.charAt(0).toUpperCase();
+        document.getElementById('p-display-name').textContent = dname;
+        document.getElementById('p-avatar').textContent = dname.charAt(0).toUpperCase();
+        document.getElementById('p-user-id').textContent = 'id: ' + (uid || '???');
+        document.getElementById('display-name-input').value = dname;
         document.getElementById('nickname-input').value = u;
 
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -182,9 +191,9 @@
                 if (data.type === 'auth_result' && !data.success) {
                     localStorage.clear();
                     window.location.href = '/';
-                } else if (data.type === 'nickname_changed') {
-                    localStorage.setItem('sam_username', data.new_name);
-                    alert("Никнейм успешно изменен!");
+                } else if (data.type === 'profile_updated') {
+                    localStorage.setItem('sam_display_name', data.display_name);
+                    alert("Профиль обновлён!");
                     window.location.href = '/chat';
                 } else if (data.type === 'error_msg') {
                     alert(data.text);
@@ -201,11 +210,10 @@
         connectWS();
 
         function saveProfile() {
-            const newNick = document.getElementById('nickname-input').value.trim();
-            if (!newNick) return alert("Ник не может быть пустым!");
-            if (newNick === u) return window.location.href = '/chat';
-            if (ws.readyState !== WebSocket.OPEN) return alert("Нет связи с сервером, подождите переподключения и попробуйте снова.");
-            ws.send(JSON.stringify({ action: 'change_nickname', new_nickname: newNick }));
+            const newDisplay = document.getElementById('display-name-input').value.trim();
+            if (!newDisplay) return alert("Ник не может быть пустым!");
+            if (ws.readyState !== WebSocket.OPEN) return alert("Нет связи с сервером.");
+            ws.send(JSON.stringify({ action: 'update_profile', display_name: newDisplay }));
         }
 
         const isTouch = window.matchMedia('(hover: none)').matches;
