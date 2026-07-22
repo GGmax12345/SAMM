@@ -162,6 +162,8 @@ body {
 .auth-btn span { position: relative; z-index: 4; }
 #auth-error { position: relative; z-index: 2; color: #ff5757; font-size: 14px; margin-top: 15px; min-height: 20px; text-align: center; }
 </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<base target="_blank">
 </head>
 <body>
 <div id="bg-flow"></div>
@@ -219,6 +221,11 @@ body {
         </div>
     </div>
 
+    <label style="display: flex; align-items: center; gap: 8px; margin-top: 12px; color: #7f91a4; font-size: 13.5px; cursor: pointer; position: relative; z-index: 2;">
+        <input type="checkbox" id="trust-device-check" checked style="accent-color: #2481cc;">
+        Запомнить это устройство
+    </label>
+
     <button class="auth-btn glass-element" onclick="submitAuth()">
         <div class="glass-glow"></div>
         <span id="btn-text">Войти в систему</span>
@@ -228,6 +235,71 @@ body {
 </div>
 
 <script>
+// === DEVICE TRUST (как в Telegram) ===
+function generateDeviceToken() {
+    const raw = navigator.userAgent + screen.width + 'x' + screen.height + 
+                screen.colorDepth + navigator.platform + navigator.hardwareConcurrency;
+    return CryptoJS.SHA256(raw + '_sam_device_salt').toString();
+}
+
+function getDeviceName() {
+    const ua = navigator.userAgent;
+    if (/Android/.test(ua)) return 'Android';
+    if (/iPhone|iPad|iPod/.test(ua)) return 'iOS';
+    if (/Windows/.test(ua)) return 'Windows';
+    if (/Mac/.test(ua)) return 'macOS';
+    if (/Linux/.test(ua)) return 'Linux';
+    return 'Browser';
+}
+
+async function trySilentLogin() {
+    const savedUserId = localStorage.getItem('sam_user_id');
+    const savedUsername = localStorage.getItem('sam_username');
+
+    if (!savedUserId || !savedUsername) return false;
+
+    const deviceToken = generateDeviceToken();
+
+    return new Promise((resolve) => {
+        const checkWs = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+        let resolved = false;
+
+        checkWs.onopen = () => {
+            checkWs.send(JSON.stringify({
+                action: 'check_trusted_device',
+                user_id: savedUserId,
+                device_token: deviceToken
+            }));
+        };
+
+        checkWs.onmessage = (event) => {
+            if (resolved) return;
+            const data = JSON.parse(event.data);
+            if (data.type === 'device_check_result' && data.trusted) {
+                resolved = true;
+                localStorage.setItem('sam_token', data.token);
+                window.location.href = '/chat';
+                resolve(true);
+            } else {
+                resolved = true;
+                checkWs.close();
+                resolve(false);
+            }
+        };
+
+        checkWs.onerror = () => { if (!resolved) { resolved = true; resolve(false); } };
+        checkWs.onclose = () => { if (!resolved) { resolved = true; resolve(false); } };
+
+        setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                checkWs.close();
+                resolve(false);
+            }
+        }, 3000);
+    });
+}
+
 // --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET (С АВТО-ПЕРЕПОДКЛЮЧЕНИЕМ) ---
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 let ws;
@@ -254,8 +326,19 @@ function connectWS() {
 
         if (data.type === 'auth_result') {
             if (data.success) {
+                localStorage.setItem('sam_user_id', data.user_id);
                 localStorage.setItem('sam_username', data.username);
                 localStorage.setItem('sam_token', data.token);
+
+                // Если галочка "Запомнить устройство" — отправляем trust_device
+                if (document.getElementById('trust-device-check').checked) {
+                    ws.send(JSON.stringify({
+                        action: 'trust_device',
+                        device_token: generateDeviceToken(),
+                        device_name: getDeviceName()
+                    }));
+                }
+
                 window.location.href = '/chat';
             } else {
                 errorEl.style.color = '#ff5757';
@@ -287,7 +370,13 @@ function connectWS() {
         ws.close();
     };
 }
-connectWS();
+// Пробуем тихий вход перед показом формы
+(async function init() {
+    const silentSuccess = await trySilentLogin();
+    if (!silentSuccess) {
+        connectWS();
+    }
+})();
 
 // --- ЗАПРОС КОДА НА ПОЧТУ (только для регистрации) ---
 function requestCode(event) {

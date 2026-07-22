@@ -205,6 +205,16 @@ async def init_db(app):
                 UNIQUE(owner_username, contact_username)
             )
         ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS trusted_devices (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                device_token TEXT NOT NULL,
+                device_name TEXT,
+                last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, device_token)
+            )
+        ''')
 
         if not os.environ.get('ADMIN_PASSWORD'):
             print("ВНИМАНИЕ: ADMIN_PASSWORD не задан — используется пароль по умолчанию.")
@@ -229,6 +239,7 @@ async def finish_login(ws, pool, db_id, db_username, db_display_name, db_role, t
     await ws.send_json({
         "type": "auth_result",
         "success": True,
+        "user_id": db_id,
         "username": db_username,
         "display_name": db_display_name or db_username,
         "role": db_role,
@@ -486,6 +497,60 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "auth_result", "success": False, "error": "Вы забанены."})
                     else:
                         await finish_login(ws, pool, row['id'], row['username'], row['display_name'], row['role'], token)
+
+                # === НОВЫЕ ЭКШЕНЫ: запоминание устройства ===
+                elif action == 'check_trusted_device':
+                    user_id = data.get('user_id', '').strip()
+                    device_token = data.get('device_token', '').strip()
+                    if not user_id or not device_token:
+                        await ws.send_json({"type": "device_check_result", "trusted": False})
+                        continue
+                    row = await pool.fetchrow(
+                        "SELECT 1 FROM trusted_devices WHERE user_id = $1 AND device_token = $2",
+                        user_id, device_token
+                    )
+                    if row:
+                        user_row = await pool.fetchrow(
+                            "SELECT id, username, display_name, role, is_banned FROM users WHERE id = $1",
+                            user_id
+                        )
+                        if user_row and not user_row['is_banned']:
+                            token = uuid.uuid4().hex
+                            await pool.execute("UPDATE users SET session_token = $1 WHERE id = $2", token, user_id)
+                            await finish_login(ws, pool, user_row['id'], user_row['username'],
+                                              user_row['display_name'], user_row['role'], token)
+                            await ws.send_json({"type": "device_check_result", "trusted": True, "token": token})
+                        else:
+                            await ws.send_json({"type": "device_check_result", "trusted": False})
+                    else:
+                        await ws.send_json({"type": "device_check_result", "trusted": False})
+
+                elif action == 'trust_device':
+                    if not sender_name:
+                        continue
+                    device_token = data.get('device_token', '').strip()
+                    device_name = data.get('device_name', 'Unknown Device')[:64]
+                    user_id = active_connections[ws]["user_id"]
+                    if device_token and user_id:
+                        await pool.execute('''
+                            INSERT INTO trusted_devices (user_id, device_token, device_name)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT (user_id, device_token) DO UPDATE SET last_used = CURRENT_TIMESTAMP
+                        ''', user_id, device_token, device_name)
+                        await ws.send_json({"type": "device_trusted", "text": "Устройство запомнено"})
+
+                elif action == 'untrust_device':
+                    if not sender_name:
+                        continue
+                    device_token = data.get('device_token', '').strip()
+                    user_id = active_connections[ws]["user_id"]
+                    if device_token and user_id:
+                        await pool.execute(
+                            "DELETE FROM trusted_devices WHERE user_id = $1 AND device_token = $2",
+                            user_id, device_token
+                        )
+                        await ws.send_json({"type": "device_untrusted", "text": "Устройство удалено из доверенных"})
+                # === КОНЕЦ НОВЫХ ЭКШЕНОВ ===
 
                 elif action == 'update_profile':
                     if not sender_name:

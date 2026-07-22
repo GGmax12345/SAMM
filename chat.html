@@ -374,6 +374,7 @@
         .context-menu-item.danger { color: #ff7b72; }
         .context-menu-item.danger:hover { background: rgba(255, 87, 87, 0.2); }
     </style>
+<base target="_blank">
 </head>
 <body>
     <div id="cursor-glow-bg"></div>
@@ -392,7 +393,7 @@
                 <div class="menu-item" onclick="openCreateGroupModal()"><span class="menu-icon">👥</span> Создать группу</div>
                 <div class="menu-item" onclick="openContactsModal()"><span class="menu-icon">👤</span> Контакты</div>
                 <div class="menu-item" onclick="window.location.href='/apps'"><span class="menu-icon">📥</span> Скачать приложение</div>
-                <div class="menu-item" onclick="localStorage.clear(); window.location.href='/'"><span class="menu-icon">🚪</span> Выйти</div>
+                <div class="menu-item" onclick="logout()"><span class="menu-icon">🚪</span> Выйти</div>
             </div>
         </div>
  
@@ -610,6 +611,18 @@
         let currentRoom = null;
         let currentChatPartner = null; 
         let renderedRooms = new Set();
+
+        // === DEVICE TRUST helpers ===
+        function generateDeviceToken() {
+            const raw = navigator.userAgent + screen.width + 'x' + screen.height + 
+                        screen.colorDepth + navigator.platform + navigator.hardwareConcurrency;
+            // Используем простой хеш, если crypto-js не загружен на этой странице
+            if (typeof CryptoJS !== 'undefined') {
+                return CryptoJS.SHA256(raw + '_sam_device_salt').toString();
+            }
+            // Fallback: простая строка
+            return btoa(raw).replace(/[^a-zA-Z0-9]/g, '').substring(0, 64);
+        }
  
         let localStream = null;
         let peerConnection = null;
@@ -1651,6 +1664,22 @@ function ctxDeleteMsg() {
         ws.send(JSON.stringify({ action: 'delete', id: activeMsgData.id }));
     }
 }
+    function logout() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                action: 'untrust_device',
+                device_token: generateDeviceToken()
+            }));
+            // Даём серверу время обработать
+            setTimeout(() => {
+                localStorage.clear();
+                window.location.href = '/';
+            }, 300);
+        } else {
+            localStorage.clear();
+            window.location.href = '/';
+        }
+    }
     </script>
 </body>
 </html>
