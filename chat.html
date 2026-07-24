@@ -373,6 +373,62 @@
         .context-menu-item:hover { background: rgba(0, 150, 255, 0.2); }
         .context-menu-item.danger { color: #ff7b72; }
         .context-menu-item.danger:hover { background: rgba(255, 87, 87, 0.2); }
+    
+        /* --- ПАНЕЛЬ ПРЕДВАРИТЕЛЬНОГО ПРОСМОТРА ВЛОЖЕНИЯ (как в Telegram) --- */
+        .attachment-preview-bar {
+            position: absolute;
+            bottom: 68px;
+            left: 0; right: 0;
+            background: rgba(10, 16, 26, 0.92);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-top: 1px solid rgba(163, 191, 255, 0.10);
+            padding: 12px 16px;
+            display: none;
+            align-items: center;
+            gap: 14px;
+            z-index: 25;
+            animation: attachSlideUp 0.2s ease-out;
+        }
+        .attachment-preview-bar.show { display: flex; }
+        @keyframes attachSlideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .attachment-thumb {
+            width: 52px; height: 52px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: #17212b;
+            border: 1px solid rgba(163, 191, 255, 0.08);
+            flex-shrink: 0;
+        }
+        .attachment-icon-box {
+            width: 52px; height: 52px;
+            border-radius: 10px;
+            background: rgba(0, 110, 220, 0.15);
+            border: 1px solid rgba(0, 180, 255, 0.15);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .attachment-info { flex: 1; min-width: 0; }
+        .attachment-name { font-size: 14px; color: #fff; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .attachment-status { font-size: 12px; color: #5ab0ff; margin-top: 2px; }
+        .attachment-cancel {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 107, 107, 0.15);
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .attachment-cancel:hover { background: rgba(255, 107, 107, 0.3); }
+
     </style>
 <base target="_blank">
 </head>
@@ -503,6 +559,49 @@
                 </div>
             </div>
         </div>
+
+        <!-- МОДАЛКА ПРЕДПРОСМОТРА ФАЙЛА (как в Telegram) -->
+        <div id="file-preview-modal" class="modal-overlay">
+            <div class="modal-box" style="max-width: 380px; width: 90%; text-align: center;">
+                <h3 style="margin-bottom: 12px;">Отправить изображение</h3>
+                <div id="file-preview-container" style="margin-bottom: 16px; max-height: 300px; overflow: hidden; border-radius: 12px; background: rgba(0,0,0,0.3);">
+                    <img id="file-preview-img" style="max-width: 100%; max-height: 300px; border-radius: 12px; display: none;" />
+                    <div id="file-preview-doc" style="padding: 30px; color: #6e89b5; display: none; font-size: 14px;">
+                        <div style="font-size: 40px; margin-bottom: 8px;">📎</div>
+                        <div id="file-preview-name"></div>
+                    </div>
+                </div>
+                <input type="text" id="file-caption-input" class="modal-input" placeholder="Добавить подпись..." style="margin-bottom: 12px; text-align: left;" maxlength="200">
+                <div class="modal-btns" style="justify-content: center; gap: 10px;">
+                    <button class="btn-cancel" onclick="cancelFilePreview()">Отмена</button>
+                    <button class="btn-primary" onclick="confirmSendFile()">Отправить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модалка предпросмотра изображения (как в Telegram) -->
+        <div id="media-preview-modal" class="modal-overlay">
+            <div class="modal-box" style="max-width: 380px; width: 90%; padding: 0; overflow: hidden; border-radius: 16px;">
+                <div style="padding: 14px 20px; border-bottom: 1px solid rgba(163,191,255,0.08); display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin:0; font-size:16px; color: #fff;">Отправить изображение</h3>
+                    <span onclick="closeMediaPreview()" style="color: #6e89b5; cursor: pointer; font-size: 20px; line-height: 1;">&times;</span>
+                </div>
+                <div style="padding: 16px 20px;">
+                    <div id="media-preview-container" style="max-height: 320px; overflow: hidden; border-radius: 12px; margin-bottom: 14px; background: #000;">
+                        <img id="media-preview-img" style="width: 100%; display: block; object-fit: cover;">
+                    </div>
+                    <input type="text" id="media-caption-input" class="modal-input" placeholder="Добавьте подпись..." style="margin-bottom: 12px;" onkeypress="if(event.key==='Enter') confirmSendFile()">
+                    <label style="display: flex; align-items: center; gap: 10px; color: #7f91a4; font-size: 13.5px; cursor: pointer; user-select: none;">
+                        <input type="checkbox" id="media-send-as-file" style="accent-color: #2481cc; width: 16px; height: 16px;">
+                        Отправить как файл
+                    </label>
+                </div>
+                <div class="modal-btns" style="padding: 0 20px 16px; justify-content: space-between;">
+                    <button class="btn-cancel" onclick="closeMediaPreview()">Отмена</button>
+                    <button class="btn-primary" onclick="confirmSendFile()">Отправить</button>
+                </div>
+            </div>
+        </div>
  
         <audio id="localAudio" autoplay muted></audio>
         <audio id="remoteAudio" autoplay></audio>
@@ -554,10 +653,21 @@
                 <div class="messages-container" id="messages">
                     <div id="empty-chat-msg">Выберите чат или создайте новый для начала общения</div>
                 </div>
+                <!-- ПАНЕЛЬ ПРЕДВАРИТЕЛЬНОГО ПРОСМОТРА ВЛОЖЕНИЯ -->
+                <div id="attachment-preview" class="attachment-preview-bar">
+                    <img id="attachment-thumb" class="attachment-thumb" style="display:none;">
+                    <div id="attachment-icon-box" class="attachment-icon-box">📎</div>
+                    <div class="attachment-info">
+                        <div id="attachment-name" class="attachment-name">file.jpg</div>
+                        <div id="attachment-status" class="attachment-status">Загрузка...</div>
+                    </div>
+                    <div class="attachment-cancel" onclick="cancelAttachment()" title="Отменить">✕</div>
+                </div>
+
                 <div class="input-panel" id="main-input-panel" style="display: none;">
                     <label class="attach-btn" title="Прикрепить файл">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                        <input type="file" id="file-input" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" onchange="sendFile()">
+                        <input type="file" id="file-input" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" onchange="handleFileSelect()">
                     </label>
                     <button class="attach-btn" id="emoji-btn" type="button" title="Эмодзи" onclick="toggleEmojiPicker()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
@@ -626,6 +736,7 @@
  
         let localStream = null;
         let peerConnection = null;
+        let pendingAttachment = null;
         let callTarget = null;
         let callTimerInterval = null;
         let callSeconds = 0;
@@ -1334,7 +1445,28 @@
         function sendTextMessage() {
             const input = document.getElementById('message-input');
             const text = input.value.trim();
-            if (text && currentRoom) {
+
+            if (pendingAttachment) {
+                if (!pendingAttachment.uploaded) {
+                    alert('Файл ещё загружается, подождите...');
+                    return;
+                }
+                // Отправляем файл + подпись (как в Telegram)
+                const contentPayload = { 
+                    name: pendingAttachment.name, 
+                    url: pendingAttachment.url,
+                    caption: text || ''
+                };
+                const encryptedPayload = encryptData(JSON.stringify(contentPayload), currentRoom);
+                ws.send(JSON.stringify({ 
+                    action: 'send_msg', 
+                    room: currentRoom, 
+                    content: encryptedPayload, 
+                    msg_type: pendingAttachment.msg_type 
+                }));
+                input.value = '';
+                cancelAttachment();
+            } else if (text && currentRoom) {
                 const encryptedText = encryptData(text, currentRoom);
                 ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedText, msg_type: 'text' }));
                 input.value = '';
@@ -1403,6 +1535,9 @@
                     
                     if (msg.msg_type === 'image') {
                         html += `<img src="${encodeURI(fileData.url)}" alt="${escapeHTML(fileData.name)}">`;
+                        if (fileData.caption) {
+                            html += `<div style="margin-top:6px;font-size:14.5px;line-height:1.4;">${escapeHTML(fileData.caption)}</div>`;
+                        }
                     } else if (msg.msg_type === 'voice') {
                         html += `🎤 <audio controls src="${encodeURI(fileData.url)}" style="height:36px;"></audio>`;
                     } else if (msg.msg_type === 'video_note') {
@@ -1411,8 +1546,12 @@
                         html += `🎵 <b>${escapeHTML(fileData.name)}</b><audio controls src="${encodeURI(fileData.url)}"></audio>`;
                     } else if (msg.msg_type === 'video') {
                         html += `🎥 <b>${escapeHTML(fileData.name)}</b><video controls src="${encodeURI(fileData.url)}"></video>`;
+                        if (fileData.caption) {
+                            html += `<div style="margin-top:6px;font-size:14.5px;line-height:1.4;">${escapeHTML(fileData.caption)}</div>`;
+                        }
                     } else {
                         html += `📎 <b>${escapeHTML(fileData.name)}</b>`;
+                        if (fileData.caption) html += `<div style="margin-top:6px; font-size:14px; color:#dbe5ff;">${escapeHTML(fileData.caption)}</div>`;
                     }
                     if (!['voice', 'video_note'].includes(msg.msg_type)) {
                         html += `<br><a href="${encodeURI(fileData.url)}" download="${escapeHTML(fileData.name)}" class="download-btn">📥 Скачать</a>`;
