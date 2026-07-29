@@ -7,13 +7,11 @@
 <style>
 * { box-sizing: border-box; }
 body {
-    background: radial-gradient(circle at center, #070b14 0%, #020408 100%);
+    background: #070b14;
     color: #dbe5ff;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;
-    overflow: hidden;
-    perspective: 1000px;
-    position: relative;
+    overflow: hidden; position: relative;
 }
 #bg-flow {
     position: fixed; inset: 0; z-index: -1; pointer-events: none;
@@ -26,49 +24,39 @@ body {
     filter: blur(42px);
     animation: bgFlowShift 18s ease-in-out infinite;
 }
+.touch-device #bg-flow { animation: none; filter: blur(20px); }
 @keyframes bgFlowShift {
     0% { background-position: 0% 0%; } 25% { background-position: 80% 30%; }
     50% { background-position: 100% 70%; } 75% { background-position: 30% 90%; }
     100% { background-position: 0% 0%; }
 }
 #cursor-glow-bg {
-    position: absolute;
-    width: 250px; height: 250px;
-    background: radial-gradient(circle, rgba(0, 160, 255, 0.3) 0%, transparent 60%);
-    filter: blur(15px);
-    border-radius: 50%;
-    pointer-events: none;
-    transform: translate(-50%, -50%);
-    z-index: 0;
-    transition: opacity 0.4s ease;
+    position: absolute; width: 250px; height: 250px;
+    background: radial-gradient(circle, rgba(0,160,255,0.3) 0%, transparent 60%);
+    filter: blur(15px); border-radius: 50%; pointer-events: none;
+    transform: translate(-50%,-50%); z-index: 0; transition: opacity 0.4s ease;
 }
+.touch-device #cursor-glow-bg { display: none !important; }
 #auth-block {
     position: relative;
-    background: rgba(10, 16, 26, 0.7);
-    backdrop-filter: blur(35px);
-    -webkit-backdrop-filter: blur(35px);
-    border: 1px solid rgba(163, 191, 255, 0.05);
+    background: rgba(10,16,26,0.85);
+    border: 1px solid rgba(163,191,255,0.05);
     border-radius: 24px;
     padding: clamp(28px, 6vw, 40px) clamp(22px, 6vw, 36px);
     width: min(390px, 92vw);
-    box-shadow: 0 40px 90px rgba(0, 0, 0, 0.95);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
     text-align: center;
-    transform-style: preserve-3d;
     z-index: 1;
-    text-shadow: 0 0 8px rgba(163, 191, 255, 0.25);
     overflow: hidden;
 }
 #panel-inner-glow {
-    position: absolute;
-    width: 350px; height: 350px;
-    background: radial-gradient(circle, rgba(0, 180, 255, 0.15) 0%, transparent 60%);
-    border-radius: 50%;
-    pointer-events: none;
-    transform: translate(-50%, -50%);
-    z-index: 0;
-    opacity: 0;
+    position: absolute; width: 350px; height: 350px;
+    background: radial-gradient(circle, rgba(0,180,255,0.15) 0%, transparent 60%);
+    border-radius: 50%; pointer-events: none;
+    transform: translate(-50%,-50%); z-index: 0; opacity: 0;
     transition: opacity 0.4s ease;
 }
+.touch-device #panel-inner-glow { display: none !important; }
 #auth-block h2 {
     position: relative; z-index: 2;
     margin: 0 0 30px 0;
@@ -78,12 +66,10 @@ body {
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: none;
 }
 .glass-element {
-    position: relative;
-    width: 100%; margin: 14px 0;
-    background: rgba(12, 18, 30, 0.35);
+    position: relative; width: 100%; margin: 14px 0;
+    background: rgba(12,18,30,0.5);
     border-radius: 14px;
     transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(1);
     transition: background 0.3s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1), box-shadow 0.3s;
@@ -94,32 +80,32 @@ body {
 }
 .glass-glow::before {
     content: ''; position: absolute; inset: 0;
-    background: radial-gradient(130px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 200, 255, 0.2), transparent 100%);
+    background: radial-gradient(130px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0,200,255,0.2), transparent 100%);
     opacity: 0; transition: opacity 0.3s ease;
 }
 .glass-element::after {
     content: ''; position: absolute; inset: -1px;
     border-radius: inherit; padding: 2px;
-    background: radial-gradient(100px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0, 180, 255, 0.7) 0%, rgba(0, 100, 255, 0.3) 50%, transparent 100%);
+    background: radial-gradient(100px circle at var(--local-x, 50%) var(--local-y, 50%), rgba(0,180,255,0.7) 0%, rgba(0,100,255,0.3) 50%, transparent 100%);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor; mask-composite: exclude;
     pointer-events: none; z-index: 5; opacity: 0;
     transition: opacity 0.3s ease;
 }
-.glass-element:hover { background: rgba(8, 12, 22, 0.45); }
+.touch-device .glass-element::after,
+.touch-device .glass-glow::before { display: none !important; }
+.glass-element:hover { background: rgba(8,12,22,0.6); }
 .glass-element:hover .glass-glow::before, .glass-element:hover::after { opacity: 1; }
 .glass-element:active {
     transform: translate(var(--translate-x, 0px), var(--translate-y, 0px)) scale(0.96) translateY(3px) !important;
-    background: rgba(4, 6, 10, 0.98) !important;
+    background: rgba(4,6,10,0.98) !important;
 }
 .glass-element:active .glass-glow::before { opacity: 0 !important; }
 .glass-element:active::after { opacity: 0.2 !important; }
 .tabs-glass {
-    background: rgba(12, 18, 28, 0.6);
-    padding: 5px;
-    margin-bottom: 25px;
-    display: flex; align-items: center;
+    background: rgba(12,18,28,0.7);
+    padding: 5px; margin-bottom: 25px; display: flex; align-items: center;
 }
 .auth-tabs { display: flex; width: 100%; position: relative; z-index: 2; }
 .tab {
@@ -127,15 +113,13 @@ body {
     font-weight: 600; font-size: 14px; text-align: center;
     position: relative; z-index: 3; transition: color 0.3s ease;
 }
-.tab.active { color: #dbe5ff; text-shadow: 0 0 12px rgba(0, 180, 255, 0.5); }
+.tab.active { color: #dbe5ff; }
 .tab-slider {
-    position: absolute;
-    top: 5px; bottom: 5px;
+    position: absolute; top: 5px; bottom: 5px;
     left: 5px; width: calc(50% - 5px);
-    background: rgba(0, 150, 255, 0.2);
-    border: 1px solid rgba(0, 180, 255, 0.35);
+    background: rgba(0,150,255,0.2);
+    border: 1px solid rgba(0,180,255,0.35);
     border-radius: 10px;
-    box-shadow: 0 0 20px rgba(0, 180, 255, 0.3), inset 0 0 10px rgba(0, 180, 255, 0.2);
     z-index: 1; pointer-events: none;
 }
 .auth-input {
@@ -144,31 +128,33 @@ body {
     color: #dbe5ff; outline: none;
     position: relative; z-index: 4; font-size: 15px;
 }
-.auth-input::placeholder { color: #435368; text-shadow: none; }
-
-/* Плавное скрытие/появление полей, которые нужны только при регистрации */
+.auth-input::placeholder { color: #435368; }
 #reg-user-wrap, #reg-code-wrap, #reg-pass2-wrap {
     max-height: 0; opacity: 0; overflow: hidden; margin: 0;
     transition: max-height 0.4s ease, opacity 0.3s ease;
 }
 #reg-user-wrap.expanded, #reg-code-wrap.expanded, #reg-pass2-wrap.expanded { max-height: 100px; opacity: 1; }
-
 .auth-btn {
     padding: 16px; margin-top: 15px;
-    background: rgba(0, 140, 255, 0.15);
+    background: rgba(0,140,255,0.2);
     font-weight: 600; cursor: pointer; color: #dbe5ff; font-size: 16px;
     display: flex; justify-content: center; align-items: center; border: none;
 }
 .auth-btn span { position: relative; z-index: 4; }
 #auth-error { position: relative; z-index: 2; color: #ff5757; font-size: 14px; margin-top: 15px; min-height: 20px; text-align: center; }
+@media (max-width: 480px) {
+    #auth-block { padding: 24px 18px; }
+    .auth-input { padding: 14px; font-size: 16px; }
+    #bg-flow { filter: blur(20px); animation: none; }
+}
 </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<base target="_blank">
 <base target="_blank">
 </head>
 <body>
 <div id="bg-flow"></div>
 <div id="cursor-glow-bg"></div>
-
 <div id="loading-screen" style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #5ab0ff; font-size: 16px; z-index: 100; gap: 16px;">
     <svg width="40" height="40" viewBox="0 0 50 50" style="animation: spin 1s linear infinite;">
         <circle cx="25" cy="25" r="20" fill="none" stroke="rgba(0,140,255,0.2)" stroke-width="4"/>
@@ -177,11 +163,9 @@ body {
     <span style="color: #6e89b5; font-size: 14px;">Проверка устройства...</span>
 </div>
 <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
-
 <div id="auth-block" style="display: none;">
     <div id="panel-inner-glow"></div>
     <h2>SAM Messenger</h2>
-
     <div class="glass-element tabs-glass">
         <div class="glass-glow"></div>
         <div class="tab-slider" id="tab-slider"></div>
@@ -190,67 +174,52 @@ body {
             <div id="tab-reg" class="tab" onclick="switchAuthTab('register')">Регистрация</div>
         </div>
     </div>
-
-    <!-- Имя пользователя (только регистрация) -->
     <div id="reg-user-wrap">
         <div class="glass-element">
             <div class="glass-glow"></div>
             <input type="text" id="auth-user" class="auth-input" placeholder="Например: Gr2_1" autocomplete="off" maxlength="32">
         </div>
     </div>
-
-    <!-- Почта: при входе — просто почта, при регистрации — почта + кнопка "Код" -->
     <div class="glass-element" style="display: flex; align-items: center;">
         <div class="glass-glow"></div>
         <input type="email" id="auth-email" class="auth-input" placeholder="Электронная почта" autocomplete="off" style="flex: 1;">
-        <button id="send-code-btn" onclick="requestCode(event)" style="display:none; position: relative; z-index: 6; background: none; border: none; color: #00aaff; cursor: pointer; padding: 0 20px; font-weight: bold; font-size: 14px; white-space: nowrap; height: 100%;">
-            Код
-        </button>
+        <button id="send-code-btn" onclick="requestCode(event)" style="display:none; position: relative; z-index: 6; background: none; border: none; color: #00aaff; cursor: pointer; padding: 0 20px; font-weight: bold; font-size: 14px; white-space: nowrap; height: 100%;">Код</button>
     </div>
-
-    <!-- Код подтверждения из письма (только регистрация) -->
     <div id="reg-code-wrap">
         <div class="glass-element">
             <div class="glass-glow"></div>
             <input type="text" id="auth-code" class="auth-input" placeholder="Код подтверждения" autocomplete="off">
         </div>
     </div>
-
-    <!-- Пароль (и вход, и регистрация) -->
     <div class="glass-element">
         <div class="glass-glow"></div>
         <input type="password" id="auth-password" class="auth-input" placeholder="Пароль" autocomplete="off">
     </div>
-
-    <!-- Подтверждение пароля (только регистрация) -->
     <div id="reg-pass2-wrap">
         <div class="glass-element">
             <div class="glass-glow"></div>
             <input type="password" id="auth-password2" class="auth-input" placeholder="Повторите пароль" autocomplete="off">
         </div>
     </div>
-
     <label style="display: flex; align-items: center; gap: 8px; margin-top: 12px; color: #7f91a4; font-size: 13.5px; cursor: pointer; position: relative; z-index: 2;">
         <input type="checkbox" id="trust-device-check" checked style="accent-color: #2481cc;">
         Запомнить это устройство
     </label>
-
     <button class="auth-btn glass-element" onclick="submitAuth()">
         <div class="glass-glow"></div>
         <span id="btn-text">Войти в систему</span>
     </button>
-
     <div id="auth-error"></div>
 </div>
-
 <script>
-// === DEVICE TRUST (как в Telegram) ===
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    document.body.classList.add('touch-device');
+}
 function generateDeviceToken() {
-    const raw = navigator.userAgent + screen.width + 'x' + screen.height + 
+    const raw = navigator.userAgent + screen.width + 'x' + screen.height +
                 screen.colorDepth + navigator.platform + navigator.hardwareConcurrency;
     return CryptoJS.SHA256(raw + '_sam_device_salt').toString();
 }
-
 function getDeviceName() {
     const ua = navigator.userAgent;
     if (/Android/.test(ua)) return 'Android';
@@ -260,19 +229,14 @@ function getDeviceName() {
     if (/Linux/.test(ua)) return 'Linux';
     return 'Browser';
 }
-
 async function trySilentLogin() {
     const savedUserId = localStorage.getItem('sam_user_id');
     const savedUsername = localStorage.getItem('sam_username');
-
     if (!savedUserId || !savedUsername) return false;
-
     const deviceToken = generateDeviceToken();
-
     return new Promise((resolve) => {
         const checkWs = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
         let resolved = false;
-
         checkWs.onopen = () => {
             checkWs.send(JSON.stringify({
                 action: 'check_trusted_device',
@@ -280,12 +244,9 @@ async function trySilentLogin() {
                 device_token: deviceToken
             }));
         };
-
         checkWs.onmessage = (event) => {
             if (resolved) return;
             const data = JSON.parse(event.data);
-
-            // Сервер сначала шлёт auth_result (из finish_login), потом device_check_result
             if (data.type === 'auth_result' && data.success) {
                 resolved = true;
                 localStorage.setItem('sam_token', data.token);
@@ -299,43 +260,25 @@ async function trySilentLogin() {
                 resolve(true);
             }
             else if (data.type === 'device_check_result' && !data.trusted) {
-                resolved = true;
-                checkWs.close();
-                resolve(false);
+                resolved = true; checkWs.close(); resolve(false);
             }
             else if (data.type === 'auth_result' && !data.success) {
-                resolved = true;
-                checkWs.close();
-                resolve(false);
+                resolved = true; checkWs.close(); resolve(false);
             }
-            // init_data и другие — игнорируем, ждём финального ответа
         };
-
         checkWs.onerror = () => { if (!resolved) { resolved = true; resolve(false); } };
         checkWs.onclose = () => { if (!resolved) { resolved = true; resolve(false); } };
-
         setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                checkWs.close();
-                resolve(false);
-            }
+            if (!resolved) { resolved = true; checkWs.close(); resolve(false); }
         }, 3000);
     });
 }
-
-// --- ПОДКЛЮЧЕНИЕ К СЕРВЕРУ ЧЕРЕЗ WEBSOCKET (С АВТО-ПЕРЕПОДКЛЮЧЕНИЕМ) ---
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-let ws;
-let currentAuthAction = 'login';
-let pendingRedirect = false;
-let reconnectAttempts = 0;
-let reconnectTimer = null;
-
+let ws; let currentAuthAction = 'login'; let pendingRedirect = false;
+let reconnectAttempts = 0; let reconnectTimer = null;
 function connectWS() {
     ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
     const errorEl = document.getElementById('auth-error');
-
     ws.onopen = function() {
         reconnectAttempts = 0;
         if (errorEl.dataset.reconnecting === '1') {
@@ -345,17 +288,13 @@ function connectWS() {
             setTimeout(() => { if (errorEl.dataset.reconnecting !== '1') errorEl.textContent = ''; }, 2000);
         }
     };
-
     ws.onmessage = function(event) {
         const data = JSON.parse(event.data);
-
         if (data.type === 'auth_result') {
             if (data.success) {
                 localStorage.setItem('sam_user_id', data.user_id);
                 localStorage.setItem('sam_username', data.username);
                 localStorage.setItem('sam_token', data.token);
-
-                // Если галочка "Запомнить устройство" — отправляем trust_device и ждём ответа
                 if (document.getElementById('trust-device-check').checked) {
                     pendingRedirect = true;
                     errorEl.style.color = '#57ff57';
@@ -365,38 +304,14 @@ function connectWS() {
                         device_token: generateDeviceToken(),
                         device_name: getDeviceName()
                     }));
-                    // На случай если ответ потеряется — редиректим через 1.5 сек
-                    setTimeout(() => {
-                        if (pendingRedirect) {
-                            pendingRedirect = false;
-                            window.location.href = '/chat';
-                        }
-                    }, 1500);
-                } else {
-                    window.location.href = '/chat';
-                }
-            } else {
-                errorEl.style.color = '#ff5757';
-                errorEl.textContent = data.error;
-            }
+                    setTimeout(() => { if (pendingRedirect) { pendingRedirect = false; window.location.href = '/chat'; } }, 1500);
+                } else { window.location.href = '/chat'; }
+            } else { errorEl.style.color = '#ff5757'; errorEl.textContent = data.error; }
         }
-        else if (data.type === 'device_trusted') {
-            if (pendingRedirect) {
-                pendingRedirect = false;
-                window.location.href = '/chat';
-            }
-        }
-        else if (data.type === 'code_sent') {
-            errorEl.style.color = '#57ff57';
-            errorEl.textContent = data.text;
-            resetCodeButtonCooldown();
-        }
-        else if (data.type === 'auth_error') {
-            errorEl.style.color = '#ff5757';
-            errorEl.textContent = data.text;
-        }
+        else if (data.type === 'device_trusted') { if (pendingRedirect) { pendingRedirect = false; window.location.href = '/chat'; } }
+        else if (data.type === 'code_sent') { errorEl.style.color = '#57ff57'; errorEl.textContent = data.text; resetCodeButtonCooldown(); }
+        else if (data.type === 'auth_error') { errorEl.style.color = '#ff5757'; errorEl.textContent = data.text; }
     };
-
     ws.onclose = function() {
         errorEl.dataset.reconnecting = '1';
         errorEl.style.color = '#ffb020';
@@ -406,12 +321,8 @@ function connectWS() {
         clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(connectWS, delay);
     };
-
-    ws.onerror = function() {
-        ws.close();
-    };
+    ws.onerror = function() { ws.close(); };
 }
-// Пробуем тихий вход перед показом формы
 (async function init() {
     const silentSuccess = await trySilentLogin();
     document.getElementById('loading-screen').style.display = 'none';
@@ -420,217 +331,118 @@ function connectWS() {
         connectWS();
     }
 })();
-
-// --- ЗАПРОС КОДА НА ПОЧТУ (только для регистрации) ---
 function requestCode(event) {
     if (event) event.stopPropagation();
     const email = document.getElementById('auth-email').value.trim();
     const errorEl = document.getElementById('auth-error');
-
-    if (!email) {
-        errorEl.style.color = '#ff5757';
-        errorEl.textContent = 'Сначала введите адрес электронной почты!';
-        return;
-    }
-
+    if (!email) { errorEl.style.color = '#ff5757'; errorEl.textContent = 'Сначала введите адрес электронной почты!'; return; }
     if (ws.readyState === WebSocket.OPEN) {
-        errorEl.style.color = '#a3cfff';
-        errorEl.textContent = 'Отправка запроса...';
+        errorEl.style.color = '#a3cfff'; errorEl.textContent = 'Отправка запроса...';
         ws.send(JSON.stringify({ action: 'request_code', email: email }));
-    } else {
-        errorEl.style.color = '#ff5757';
-        errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
-    }
+    } else { errorEl.style.color = '#ff5757'; errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.'; }
 }
-
 function resetCodeButtonCooldown() {
     const btn = document.getElementById('send-code-btn');
     btn.disabled = true;
     let timeLeft = 30;
     const timer = setInterval(() => {
-        if (timeLeft <= 0) {
-            clearInterval(timer);
-            btn.innerText = "Код";
-            btn.disabled = false;
-            btn.style.color = "#00aaff";
-        } else {
-            btn.style.color = "#435368";
-            btn.innerText = `${timeLeft}с`;
-            timeLeft--;
-        }
+        if (timeLeft <= 0) { clearInterval(timer); btn.innerText = "Код"; btn.disabled = false; btn.style.color = "#00aaff"; }
+        else { btn.style.color = "#435368"; btn.innerText = `${timeLeft}с`; timeLeft--; }
     }, 1000);
 }
-
-// --- ОТПРАВКА ФОРМЫ: ВХОД ПО ПАРОЛЮ / РЕГИСТРАЦИЯ ПО КОДУ+ПАРОЛЮ ---
 function submitAuth() {
     const email = document.getElementById('auth-email').value.trim();
     const password = document.getElementById('auth-password').value;
     const errorEl = document.getElementById('auth-error');
-
-    if (!email || !password) {
-        errorEl.style.color = '#ff5757';
-        errorEl.textContent = 'Заполните почту и пароль!';
-        return;
-    }
-
+    if (!email || !password) { errorEl.style.color = '#ff5757'; errorEl.textContent = 'Заполните почту и пароль!'; return; }
     let payload;
-
     if (currentAuthAction === 'register') {
         const username = document.getElementById('auth-user').value.trim();
         const code = document.getElementById('auth-code').value.trim();
         const password2 = document.getElementById('auth-password2').value;
-
-        if (!username) {
-            errorEl.style.color = '#ff5757';
-            errorEl.textContent = 'Укажите имя пользователя для регистрации!';
-            return;
-        }
-        if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(username)) {
-            errorEl.style.color = '#ff5757';
-            errorEl.textContent = 'Имя пользователя: 4–32 символа, латиница/цифры/"_", начинается с буквы. Например: Gr2_1';
-            return;
-        }
-        if (!code) {
-            errorEl.style.color = '#ff5757';
-            errorEl.textContent = 'Введите код подтверждения из письма!';
-            return;
-        }
-        if (password.length < 6) {
-            errorEl.style.color = '#ff5757';
-            errorEl.textContent = 'Пароль должен быть не короче 6 символов!';
-            return;
-        }
-        if (password !== password2) {
-            errorEl.style.color = '#ff5757';
-            errorEl.textContent = 'Пароли не совпадают!';
-            return;
-        }
-
+        if (!username) { errorEl.style.color = '#ff5757'; errorEl.textContent = 'Укажите имя пользователя для регистрации!'; return; }
+        if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(username)) { errorEl.style.color = '#ff5757'; errorEl.textContent = 'Имя пользователя: 4–32 символа, латиница/цифры/"_", начинается с буквы. Например: Gr2_1'; return; }
+        if (!code) { errorEl.style.color = '#ff5757'; errorEl.textContent = 'Введите код подтверждения из письма!'; return; }
+        if (password.length < 6) { errorEl.style.color = '#ff5757'; errorEl.textContent = 'Пароль должен быть не короче 6 символов!'; return; }
+        if (password !== password2) { errorEl.style.color = '#ff5757'; errorEl.textContent = 'Пароли не совпадают!'; return; }
         payload = { action: 'register', email: email, code: code, username: username, password: password };
-    } else {
-        payload = { action: 'login', email: email, password: password };
-    }
-
-    if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(payload));
-    } else {
-        errorEl.style.color = '#ff5757';
-        errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.';
-    }
+    } else { payload = { action: 'login', email: email, password: password }; }
+    if (ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(payload)); }
+    else { errorEl.style.color = '#ff5757'; errorEl.textContent = 'Нет связи с сервером, переподключаюсь — попробуйте через пару секунд.'; }
 }
-
-// --- АНИМАЦИЯ КАПСУЛЫ И СМЕНА ПОЛЕЙ ПРИ ПЕРЕКЛЮЧЕНИИ ВКЛАДОК ---
 function switchAuthTab(type) {
     if (currentAuthAction === type) return;
     currentAuthAction = type;
     const slider = document.getElementById('tab-slider');
     const isReg = type === 'register';
-
     slider.style.transition = 'left 0.15s ease-in, width 0.15s ease-in';
-    slider.style.left = '5px';
-    slider.style.width = 'calc(100% - 10px)';
-
+    slider.style.left = '5px'; slider.style.width = 'calc(100% - 10px)';
     document.getElementById('tab-login').classList.toggle('active', !isReg);
     document.getElementById('tab-reg').classList.toggle('active', isReg);
-
     document.getElementById('reg-user-wrap').classList.toggle('expanded', isReg);
     document.getElementById('reg-code-wrap').classList.toggle('expanded', isReg);
     document.getElementById('reg-pass2-wrap').classList.toggle('expanded', isReg);
     document.getElementById('send-code-btn').style.display = isReg ? 'block' : 'none';
-
     document.getElementById('btn-text').textContent = isReg ? 'Создать аккаунт' : 'Войти в систему';
     document.getElementById('auth-error').textContent = '';
-
     setTimeout(() => {
         slider.style.transition = 'left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
-        slider.style.left = isReg ? '50%' : '5px';
-        slider.style.width = 'calc(50% - 5px)';
+        slider.style.left = isReg ? '50%' : '5px'; slider.style.width = 'calc(50% - 5px)';
     }, 150);
 }
-
-// --- ЭФФЕКТЫ СВЕЧЕНИЯ И 3D КУРСОР (только для устройств с мышью) ---
 const isTouchDevice = window.matchMedia('(hover: none)').matches;
 const authBlock = document.getElementById('auth-block');
 const bgGlow = document.getElementById('cursor-glow-bg');
 const innerGlow = document.getElementById('panel-inner-glow');
 const glassElements = document.querySelectorAll('.glass-element');
-
-if (isTouchDevice) {
-    bgGlow.style.display = 'none';
-    innerGlow.style.display = 'none';
-} else {
+if (!isTouchDevice) {
     let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
     let glowX = mouseX, glowY = mouseY;
     let blockCurrentX = 0, blockCurrentY = 0;
     let blockTargetX = 0, blockTargetY = 0;
     let isOverMainPanel = false;
-
-    authBlock.addEventListener('mouseenter', () => {
-        isOverMainPanel = true;
-        bgGlow.style.opacity = '0';
-        innerGlow.style.opacity = '1';
-    });
-    authBlock.addEventListener('mouseleave', () => {
-        isOverMainPanel = false;
-        bgGlow.style.opacity = '1';
-        innerGlow.style.opacity = '0';
-    });
-
+    authBlock.addEventListener('mouseenter', () => { isOverMainPanel = true; bgGlow.style.opacity = '0'; innerGlow.style.opacity = '1'; });
+    authBlock.addEventListener('mouseleave', () => { isOverMainPanel = false; bgGlow.style.opacity = '1'; innerGlow.style.opacity = '0'; });
     document.addEventListener('mousemove', (e) => {
         mouseX = e.clientX; mouseY = e.clientY;
-        if (isOverMainPanel) {
-            blockTargetX = 0; blockTargetY = 0;
-        } else {
-            const centerX = window.innerWidth / 2;
-            const centerY = window.innerHeight / 2;
+        if (isOverMainPanel) { blockTargetX = 0; blockTargetY = 0; }
+        else {
+            const centerX = window.innerWidth / 2; const centerY = window.innerHeight / 2;
             blockTargetX = ((centerY - mouseY) / centerY) * 12;
             blockTargetY = ((mouseX - centerX) / centerX) * 12;
         }
     });
-
     let elementsData = Array.from(glassElements).map(el => ({ el: el, tX: 0, tY: 0, cX: 0, cY: 0 }));
-
     glassElements.forEach((el, index) => {
-        el.addEventListener('mouseleave', () => {
-            elementsData[index].tX = 0; elementsData[index].tY = 0;
-        });
+        el.addEventListener('mouseleave', () => { elementsData[index].tX = 0; elementsData[index].tY = 0; });
         el.addEventListener('mousemove', (e) => {
             const rect = el.getBoundingClientRect();
             const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-            el.style.setProperty('--local-x', `${x}px`);
-            el.style.setProperty('--local-y', `${y}px`);
+            el.style.setProperty('--local-x', `${x}px`); el.style.setProperty('--local-y', `${y}px`);
             const dx = x - rect.width / 2; const dy = y - rect.height / 2;
             elementsData[index].tX = (dx / (rect.width / 2)) * 4;
             elementsData[index].tY = (dy / (rect.height / 2)) * 4;
         });
     });
-
     function renderLoop() {
-        glowX += (mouseX - glowX) * 0.15;
-        glowY += (mouseY - glowY) * 0.15;
+        glowX += (mouseX - glowX) * 0.15; glowY += (mouseY - glowY) * 0.15;
         bgGlow.style.left = `${glowX}px`; bgGlow.style.top = `${glowY}px`;
-
         if (isOverMainPanel) {
             const rect = authBlock.getBoundingClientRect();
-            innerGlow.style.left = `${glowX - rect.left}px`;
-            innerGlow.style.top = `${glowY - rect.top}px`;
+            innerGlow.style.left = `${glowX - rect.left}px`; innerGlow.style.top = `${glowY - rect.top}px`;
         }
-
         blockCurrentX += (blockTargetX - blockCurrentX) * 0.08;
         blockCurrentY += (blockTargetY - blockCurrentY) * 0.08;
         authBlock.style.transform = `rotateX(${blockCurrentX}deg) rotateY(${blockCurrentY}deg)`;
-
         elementsData.forEach(data => {
-            data.cX += (data.tX - data.cX) * 0.1;
-            data.cY += (data.tY - data.cY) * 0.1;
+            data.cX += (data.tX - data.cX) * 0.1; data.cY += (data.tY - data.cY) * 0.1;
             data.el.style.setProperty('--translate-x', `${data.cX}px`);
             data.el.style.setProperty('--translate-y', `${data.cY}px`);
         });
-
         requestAnimationFrame(renderLoop);
     }
     requestAnimationFrame(renderLoop);
-} // конец блока эффектов для устройств с мышью
+}
 </script>
 </body>
 </html>
