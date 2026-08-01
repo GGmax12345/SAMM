@@ -13,7 +13,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.browser)
         
         self.setWindowTitle('SAM Messenger Desktop')
-        self.resize(1024, 768)
+        self.resize(600, 800)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
