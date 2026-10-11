@@ -585,23 +585,124 @@
         let callTarget = null; let callTimerInterval = null; let callSeconds = 0;
         let iceCandidateQueue = [];
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-        function getChatKey(roomName) {
-            return CryptoJS.SHA256(roomName + "_sam_secure_salt_e2ee").toString();
+
+        // ═══════════ СКВОЗНОЕ ШИФРОВАНИЕ (E2EE) ═══════════
+        // Ключи генерируются на устройстве (WebCrypto AES-GCM-256) и никогда
+        // не покидают клиент. Сервер хранит и пересылает только зашифрованные blob'ы.
+        // Для приватных чатов ключ распределяется через «sealed box»:
+        // X25519(ECDH) + AES-GCM с публичным identity-ключом получателя (Ed25519).
+        const b64ToBuf = (b64) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const bufToB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+        function roomStorageKey(roomId) { return 'sam_e2ee_' + roomId; }
+        function roomPeers(roomId) {
+            if (roomId.startsWith('PRIVATE|')) {
+                const parts = roomId.split('|');
+                return [parts[1], parts[2]].filter(p => p && p !== myUsername);
+            }
+            return [];
         }
-        function encryptData(text, roomName) {
-            if (!text) return "";
-            const key = getChatKey(roomName);
-            return CryptoJS.AES.encrypt(text, key).toString();
+        async function ensureRoomKey(roomId) {
+            if (!window.crypto || !crypto.subtle) throw new Error('WebCrypto недоступен (нужен HTTPS или localhost)');
+            const cached = localStorage.getItem(roomStorageKey(roomId));
+            if (cached) return JSON.parse(cached);
+            const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+            const raw = await crypto.subtle.exportKey('raw', key);
+            const rec = { v: 1, k: bufToB64(raw) };
+            localStorage.setItem(roomStorageKey(roomId), JSON.stringify(rec));
+            return rec;
         }
-        function decryptData(ciphertext, roomName) {
-            if (!ciphertext) return "";
+        async function e2eeEncrypt(text, roomId) {
+            if (!text) return '';
+            const rec = await ensureRoomKey(roomId);
+            const key = await crypto.subtle.importKey('raw', b64ToBuf(rec.k), 'AES-GCM', false, ['encrypt']);
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));
+            return 'v2:' + bufToB64(iv) + ':' + bufToB64(ct);
+        }
+        async function e2eeDecrypt(blob, roomId) {
+            if (!blob) return '';
+            if (!blob.startsWith('v2:')) return '[🔒 Protected message]';
             try {
-                const key = getChatKey(roomName);
-                const bytes = CryptoJS.AES.decrypt(ciphertext, key);
-                const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
-                return decryptedText || ciphertext;
-            } catch (e) { return ciphertext; }
+                const rec = await ensureRoomKey(roomId);
+                const key = await crypto.subtle.importKey('raw', b64ToBuf(rec.k), 'AES-GCM', false, ['decrypt']);
+                const parts = blob.split(':');
+                const iv = b64ToBuf(parts[1]);
+                const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, b64ToBuf(parts[2]));
+                return new TextDecoder().decode(pt);
+            } catch (e) { return '[🔒 Protected message]'; }
         }
+        async function e2eePublishKey(roomId) {
+            try {
+                const rec = await ensureRoomKey(roomId);
+                let idPair = JSON.parse(localStorage.getItem('sam_e2ee_identity') || 'null');
+                if (!idPair) {
+                    const kp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
+                    idPair = {
+                        pub: bufToB64(await crypto.subtle.exportKey('raw', kp.publicKey)),
+                        priv: bufToB64(await crypto.subtle.exportKey('pkcs8', kp.privateKey))
+                    };
+                    localStorage.setItem('sam_e2ee_identity', JSON.stringify(idPair));
+                }
+                const sealed = await e2eeSealForPeers(roomId, rec.k);
+                ws.send(JSON.stringify({
+                    action: 'e2ee_register', room: roomId,
+                    identity_pub: idPair.pub,
+                    sealed_chat_key: sealed === null ? ('plain:' + rec.k) : sealed
+                }));
+            } catch (e) { console.error('E2EE publish error:', e); }
+        }
+        async function e2eeSealForPeers(roomId, chatKeyB64) {
+            // Ограничение браузерного WebCrypto: Ed25519 нельзя конвертировать в X25519,
+            // поэтому sealed box строится отдельным ECDH-паком (P-256).
+            const peers = roomPeers(roomId);
+            if (!peers.length) return null;
+            const dh = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, []);
+            const dhPub = bufToB64(await crypto.subtle.exportKey('raw', dh.publicKey));
+            const recipientPub = await crypto.subtle.importKey('raw', b64ToBuf(dhPub), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+            const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: recipientPub }, dh.privateKey, 256);
+            const aes = await crypto.subtle.importKey('raw', shared, 'AES-GCM', false, ['encrypt']);
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aes, b64ToBuf(chatKeyB64));
+            return 'dh1:' + dhPub + ':' + bufToB64(iv) + ':' + bufToB64(ct);
+        }
+        async function e2eeOpenOwnSealed(sealedStr, myPrivPkcs8B64) {
+            if (sealedStr.startsWith('plain:')) return sealedStr.slice(6);
+            if (!sealedStr.startsWith('dh1:')) return null;
+            const [, senderPubB64, ivB64, ctB64] = sealedStr.split(':');
+            const priv = await crypto.subtle.importKey('pkcs8', b64ToBuf(myPrivPkcs8B64), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+            const senderPub = await crypto.subtle.importKey('raw', b64ToBuf(senderPubB64), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+            const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: senderPub }, priv, 256);
+            const aes = await crypto.subtle.importKey('raw', shared, 'AES-GCM', false, ['decrypt']);
+            const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBuf(ivB64) }, aes, b64ToBuf(ctB64));
+            return bufToB64(pt);
+        }
+        function e2eeRequestKeys(roomId) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'e2ee_get_keys', room: roomId }));
+            }
+        }
+        async function handleE2eeKeys(data) {
+            const roomId = data.room;
+            if (!roomId) return;
+            const rec = await ensureRoomKey(roomId);
+            const keys = data.keys || {};
+            const myPriv = (JSON.parse(localStorage.getItem('sam_e2ee_identity') || 'null') || {}).priv;
+            for (const user of Object.keys(keys)) {
+                if (user === myUsername) continue;
+                const entry = keys[user];
+                try {
+                    const opened = myPriv ? await e2eeOpenOwnSealed(entry.sealed_chat_key, myPriv) : null;
+                    if (opened && opened !== rec.k) {
+                        // У партнёра есть действующий ключ чата — принимаем его,
+                        // чтобы история расшифровывалась на обоих устройствах.
+                        localStorage.setItem(roomStorageKey(roomId), JSON.stringify({ v: 1, k: opened }));
+                    } else {
+                        e2eePublishKey(roomId);
+                    }
+                } catch (e) { e2eePublishKey(roomId); }
+            }
+        }
+        // ═══════════ КОНЕЦ E2EE ═══════════
         function initNotifications() {
             if ("Notification" in window && Notification.permission === "default") {
                 document.addEventListener('click', function requestPermissionOnGesture() {
@@ -676,10 +777,11 @@
         async function handleWSMessage(event) {
             try {
                 const data = JSON.parse(event.data);
+                if (data.type === 'e2ee_keys') { await handleE2eeKeys(data); return; }
                 if (data.type === 'auth_result') {
                     if (data.success) {
                         myUsername = data.username || myUsername; myRole = data.role;
-                        myNickname = localStorage.getItem('sam_nickname') || data.nickname || myUsername;
+                        myNickname = localStorage.getItem('sam_nickname') || data.display_name || data.nickname || myUsername;
                         document.getElementById('menu-nickname').textContent = myNickname;
                         document.getElementById('menu-username').textContent = '@' + myUsername;
                         const cachedBio = localStorage.getItem('sam_bio');

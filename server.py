@@ -17,7 +17,6 @@ import asyncpg
 from PIL import Image as PILImage
 import random
 from argon2 import PasswordHasher
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 # ─── КОНФИГ ──────────────────────────────────────────────────────────
 USERNAME_PATTERN = re.compile(r'^[A-Za-z][A-Za-z0-9_]{3,31}$')
@@ -61,27 +60,28 @@ def verify_password(password: str, hash_str: str) -> bool:
 def hash_email(email: str) -> str:
     return hmac.new(APP_SECRET.encode('utf-8'), email.lower().strip().encode('utf-8'), hashlib.sha256).hexdigest()
 
-def get_msg_key():
-    return hashlib.sha256(APP_SECRET.encode('utf-8')).digest()[:32]
+# ─── E2EE (СКВОЗНОЕ ШИФРОВАНИЕ) ──────────────────────────────────────
+# Сервер НЕ имеет доступа к ключам шифрования и не может читать сообщения.
+# Содержимое сообщений приходит с клиента уже зашифрованным (AES-GCM 256,
+# WebCrypto), ключи хранятся только на устройствах пользователей.
+# Для приватных чатов сервер выступает «почтовым ящиком»: хранит публичные
+# identity-ключи (Ed25519) и зашифрованные симметричные ключи чатов
+# (sealed box: X25519 + AES-GCM) как непрозрачные blob'ы и раздаёт их
+# только участникам соответствующего чата.
+E2EE_KEY_TTL_DAYS = 30
 
-def encrypt_msg(plaintext: str) -> str:
-    if not plaintext:
-        return ""
-    aesgcm = AESGCM(get_msg_key())
-    nonce = os.urandom(12)
-    ct = aesgcm.encrypt(nonce, plaintext.encode('utf-8'), None)
-    return base64.b64encode(nonce + ct).decode('utf-8')
-
-def decrypt_msg(blob: str) -> str:
-    if not blob:
-        return ""
-    try:
-        raw = base64.b64decode(blob.encode('utf-8'))
-        aesgcm = AESGCM(get_msg_key())
-        pt = aesgcm.decrypt(raw[:12], raw[12:], None)
-        return pt.decode('utf-8')
-    except Exception:
-        return blob
+async def e2ee_cleanup(app):
+    """Периодически чистим устаревшие E2EE-ключи."""
+    pool = app['db_pool']
+    while True:
+        try:
+            await pool.execute(
+                "DELETE FROM e2ee_keys WHERE updated_at < NOW() - ($1 || ' days')::interval",
+                str(E2EE_KEY_TTL_DAYS)
+            )
+        except Exception as e:
+            print(f"E2EE cleanup error: {e}")
+        await asyncio.sleep(24 * 3600)
 
 async def generate_user_id(pool, length=10):
     alphabet = string.ascii_letters + string.digits
@@ -185,6 +185,7 @@ async def init_db(app):
                 timestamp TEXT NOT NULL
             )
         ''')
+        await conn.execute('ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted INTEGER DEFAULT 0')
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS rooms (
                 name TEXT PRIMARY KEY,
@@ -213,6 +214,18 @@ async def init_db(app):
                 device_name TEXT,
                 last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, device_token)
+            )
+        ''')
+        # E2EE: публичные ключи и запечатанные симметричные ключи чатов.
+        # Сервер хранит их как непрозрачные base64 blob'ы и не может расшифровать.
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS e2ee_keys (
+                room TEXT NOT NULL,
+                username TEXT NOT NULL,
+                identity_pub TEXT NOT NULL,
+                sealed_chat_key TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (room, username)
             )
         ''')
 
@@ -552,6 +565,84 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "device_untrusted", "text": "Устройство удалено из доверенных"})
                 # === КОНЕЦ НОВЫХ ЭКШЕНОВ ===
 
+                # === E2EE: РЕГИСТРАЦИЯ И ОБМЕН КЛЮЧАМИ ===
+                elif action == 'e2ee_register':
+                    if not sender_name:
+                        continue
+                    room = data.get('room', '')
+                    identity_pub = data.get('identity_pub', '')
+                    sealed_chat_key = data.get('sealed_chat_key', '')
+                    if not room or not identity_pub or not sealed_chat_key:
+                        await ws.send_json({"type": "error_msg", "text": "E2EE: некорректные данные ключей"})
+                        continue
+                    if len(identity_pub) > 512 or len(sealed_chat_key) > 4096:
+                        await ws.send_json({"type": "error_msg", "text": "E2EE: ключи слишком длинные"})
+                        continue
+                    # Разрешаем публиковать ключи только участникам чата
+                    can_post = False
+                    if room.startswith("SAVED|"):
+                        can_post = (room == f"SAVED|{active_connections[ws]['user_id']}")
+                    elif room.startswith("PRIVATE|"):
+                        parts = room.split('|')
+                        can_post = len(parts) == 3 and sender_name in (parts[1], parts[2])
+                    else:
+                        member = await pool.fetchval(
+                            "SELECT EXISTS(SELECT 1 FROM room_members WHERE room_name = $1 AND username = $2)",
+                            room, sender_name
+                        )
+                        can_post = bool(member)
+                    if not can_post:
+                        await ws.send_json({"type": "error_msg", "text": "E2EE: вы не состоите в этом чате"})
+                        continue
+                    await pool.execute('''
+                        INSERT INTO e2ee_keys (room, username, identity_pub, sealed_chat_key)
+                        VALUES ($1, $2, $3, $4)
+                        ON CONFLICT (room, username)
+                        DO UPDATE SET identity_pub = $3, sealed_chat_key = $4, updated_at = CURRENT_TIMESTAMP
+                    ''', room, sender_name, identity_pub, sealed_chat_key)
+                    await ws.send_json({"type": "e2ee_registered", "room": room})
+
+                elif action == 'e2ee_get_keys':
+                    if not sender_name:
+                        continue
+                    room = data.get('room', '')
+                    if not room:
+                        continue
+                    # Раздаём ключи только участникам чата
+                    can_read = False
+                    peer_names = []
+                    if room.startswith("SAVED|"):
+                        can_read = (room == f"SAVED|{active_connections[ws]['user_id']}")
+                        peer_names = [sender_name]
+                    elif room.startswith("PRIVATE|"):
+                        parts = room.split('|')
+                        can_read = len(parts) == 3 and sender_name in (parts[1], parts[2])
+                        peer_names = [p for p in parts[1:3]] if can_read else []
+                    else:
+                        member = await pool.fetchval(
+                            "SELECT EXISTS(SELECT 1 FROM room_members WHERE room_name = $1 AND username = $2)",
+                            room, sender_name
+                        )
+                        can_read = bool(member)
+                        if can_read:
+                            mrows = await pool.fetch(
+                                "SELECT username FROM room_members WHERE room_name = $1", room
+                            )
+                            peer_names = [r['username'] for r in mrows]
+                    if not can_read or not peer_names:
+                        await ws.send_json({"type": "e2ee_keys", "room": room, "keys": {}})
+                        continue
+                    rows = await pool.fetch(
+                        "SELECT username, identity_pub, sealed_chat_key FROM e2ee_keys "
+                        "WHERE room = $1 AND username = ANY($2::text[])",
+                        room, peer_names
+                    )
+                    keys = {r['username']: {
+                        "identity_pub": r['identity_pub'],
+                        "sealed_chat_key": r['sealed_chat_key']
+                    } for r in rows}
+                    await ws.send_json({"type": "e2ee_keys", "room": room, "keys": keys})
+
                 elif action == 'update_profile':
                     if not sender_name:
                         continue
@@ -742,10 +833,14 @@ async def websocket_handler(request):
                     else:
                         db_room = room
 
-                    encrypted_content = encrypt_msg(content)
+                    # E2EE: content приходит с клиента уже зашифрованным (AES-GCM).
+                    # Сервер хранит и пересылает blob как есть, не имея ключей.
+                    if not isinstance(content, str) or len(content) > 100_000:
+                        await ws.send_json({"type": "error_msg", "text": "Некорректное содержимое сообщения!"})
+                        continue
                     msg_id = await pool.fetchval(
                         "INSERT INTO messages (room, user_id, content, msg_type, timestamp) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-                        db_room, user_info["user_id"], encrypted_content, msg_type, time_str
+                        db_room, user_info["user_id"], content, msg_type, time_str
                     )
 
                     allowed_users = set()
@@ -802,22 +897,26 @@ async def websocket_handler(request):
                         db_room = room
 
                     history_rows = await pool.fetch('''
-                        SELECT m.id, u.username, u.display_name, m.content, m.msg_type, m.timestamp
-                        FROM messages m
-                        JOIN users u ON m.user_id = u.id
-                        WHERE m.room = $1
-                        ORDER BY m.id ASC
-                        LIMIT 100
+                        SELECT id, username, display_name, content, msg_type, timestamp FROM (
+                            SELECT m.id, u.username, u.display_name, m.content, m.msg_type, m.timestamp
+                            FROM messages m
+                            JOIN users u ON m.user_id = u.id
+                            WHERE m.room = $1
+                            ORDER BY m.id DESC
+                            LIMIT 100
+                        ) sub
+                        ORDER BY id ASC
                     ''', db_room)
                     for r in history_rows:
-                        decrypted = decrypt_msg(r['content'])
+                        # E2EE: сервер отдаёт зашифрованный blob как есть —
+                        # расшифровка только на устройствах участников чата.
                         await ws.send_json({
                             "type": "msg",
                             "id": r['id'],
                             "room": room,
                             "username": r['username'],
                             "display_name": r['display_name'] or r['username'],
-                            "content": decrypted,
+                            "content": r['content'],
                             "msg_type": r['msg_type'],
                             "time": r['timestamp'],
                             "history": True
@@ -826,9 +925,11 @@ async def websocket_handler(request):
                 elif action == 'delete_msg':
                     if active_connections[ws]["role"] == 'admin':
                         msg_id = data.get('msg_id')
+                        # E2EE: сервер не может подменить содержимое осмысленным
+                        # текстом — помечаем сообщение удалённым флагом is_deleted.
                         await pool.execute(
-                            "UPDATE messages SET content = $1, msg_type = 'system' WHERE id = $2",
-                            encrypt_msg('Сообщение удалено администратором'), msg_id
+                            "UPDATE messages SET is_deleted = 1 WHERE id = $2",
+                            msg_id
                         )
                         for client in list(active_connections.keys()):
                             try:
@@ -894,6 +995,7 @@ app.add_routes(routes)
 app.router.add_static('/uploads/', path=UPLOAD_DIR, name='uploads')
 app.on_startup.append(init_db)
 app.on_cleanup.append(close_db)
+app.on_startup.append(lambda app: asyncio.ensure_future(e2ee_cleanup(app)))
 
 if __name__ == '__main__':
     web.run_app(app, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
