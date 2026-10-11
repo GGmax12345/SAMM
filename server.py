@@ -9,7 +9,6 @@ import ssl
 import re
 import secrets
 import string
-import hmac
 import base64
 import aiohttp
 from aiohttp import web
@@ -30,11 +29,6 @@ DATABASE_URL = os.environ.get('DATABASE_URL', '')
 UPLOAD_DIR = 'uploads'
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'change_me_now')
-
-APP_SECRET = os.environ.get('APP_SECRET', '')
-if not APP_SECRET:
-    APP_SECRET = uuid.uuid4().hex
-    print("ВНИМАНИЕ: APP_SECRET не задан! Сгенерирован временный. Перезапуск сломает email-хеши и шифрование!")
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -58,7 +52,7 @@ def verify_password(password: str, hash_str: str) -> bool:
         return False
 
 def hash_email(email: str) -> str:
-    return hmac.new(APP_SECRET.encode('utf-8'), email.lower().strip().encode('utf-8'), hashlib.sha256).hexdigest()
+    return hashlib.sha256(email.lower().strip().encode('utf-8')).hexdigest()
 
 # ─── E2EE (СКВОЗНОЕ ШИФРОВАНИЕ) ──────────────────────────────────────
 # Сервер НЕ имеет доступа к ключам шифрования и не может читать сообщения.
