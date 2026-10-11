@@ -30,7 +30,7 @@ import time
 
 from PyQt5.QtCore import QUrl, QTimer
 from PyQt5.QtWidgets import QApplication, QMainWindow
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineProfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -70,7 +70,7 @@ class MainWindow(QMainWindow):
         # E2EE-ключи и сессия живут в localStorage — включаем хранилище
         profile = self.browser.page().profile()
         profile.setPersistentStoragePath(os.path.join(HERE, ".webengine-profile"))
-        profile.setHttpCacheType(profile.HttpCacheDisk)
+        profile.setHttpCacheType(QWebEngineProfile.HttpCacheDisk)
 
     def wait_and_load(self, url: str):
         self.browser.setUrl(QUrl(url))
