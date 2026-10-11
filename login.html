@@ -1,6 +1,22 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <script>/*SAM_CFG*/</script>
+    <script>
+    // Единая навигация: локально (file://) или на сервере; в desktop-режиме
+    // страницы берутся с удалённого сервера (данные — из его PostgreSQL).
+    function samPageUrl(path) {
+        var p = path ? String(path).replace(/^\/+/, '') : '';
+        if (typeof window.SAM_SERVER_URL === 'string' && window.SAM_SERVER_URL) {
+            return window.SAM_SERVER_URL.replace(/\/+$/, '') + '/' + p;
+        }
+        if (location.protocol === 'file:') {
+            return location.href.replace(/[^/]*$/, '') + (p ? p + '.html' : 'login.html');
+        }
+        return '/' + p;
+    }
+    </script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SAM Messenger - Вход</title>
@@ -235,7 +251,7 @@ async function trySilentLogin() {
     if (!savedUserId || !savedUsername) return false;
     const deviceToken = generateDeviceToken();
     return new Promise((resolve) => {
-        const checkWs = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+        const checkWs = new WebSocket(wsProtocol + '//' + wsHost + '/ws');
         let resolved = false;
         checkWs.onopen = () => {
             checkWs.send(JSON.stringify({
@@ -250,13 +266,13 @@ async function trySilentLogin() {
             if (data.type === 'auth_result' && data.success) {
                 resolved = true;
                 localStorage.setItem('sam_token', data.token);
-                window.location.href = '/chat';
+                window.location.href = samPageUrl('chat');
                 resolve(true);
             }
             else if (data.type === 'device_check_result' && data.trusted) {
                 resolved = true;
                 localStorage.setItem('sam_token', data.token);
-                window.location.href = '/chat';
+                window.location.href = samPageUrl('chat');
                 resolve(true);
             }
             else if (data.type === 'device_check_result' && !data.trusted) {
@@ -273,11 +289,17 @@ async function trySilentLogin() {
         }, 3000);
     });
 }
-const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+// SAM_SERVER_URL: десктоп-клиент грузит дизайн локально, данные — с сервера (PostgreSQL).
+const SERVER_ORIGIN = (typeof window.SAM_SERVER_URL === 'string' && window.SAM_SERVER_URL)
+    ? window.SAM_SERVER_URL.replace(/\/+$/, '') : '';
+const wsProtocol = SERVER_ORIGIN
+    ? (SERVER_ORIGIN.startsWith('https') ? 'wss:' : 'ws:')
+    : (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
+const wsHost = SERVER_ORIGIN ? SERVER_ORIGIN.replace(/^https?:\/\//, '') : window.location.host;
 let ws; let currentAuthAction = 'login'; let pendingRedirect = false;
 let reconnectAttempts = 0; let reconnectTimer = null;
 function connectWS() {
-    ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+    ws = new WebSocket(wsProtocol + '//' + wsHost + '/ws');
     const errorEl = document.getElementById('auth-error');
     ws.onopen = function() {
         reconnectAttempts = 0;
@@ -304,11 +326,11 @@ function connectWS() {
                         device_token: generateDeviceToken(),
                         device_name: getDeviceName()
                     }));
-                    setTimeout(() => { if (pendingRedirect) { pendingRedirect = false; window.location.href = '/chat'; } }, 1500);
-                } else { window.location.href = '/chat'; }
+                    setTimeout(() => { if (pendingRedirect) { pendingRedirect = false; window.location.href = samPageUrl('chat'); } }, 1500);
+                } else { window.location.href = samPageUrl('chat'); }
             } else { errorEl.style.color = '#ff5757'; errorEl.textContent = data.error; }
         }
-        else if (data.type === 'device_trusted') { if (pendingRedirect) { pendingRedirect = false; window.location.href = '/chat'; } }
+        else if (data.type === 'device_trusted') { if (pendingRedirect) { pendingRedirect = false; window.location.href = samPageUrl('chat'); } }
         else if (data.type === 'code_sent') { errorEl.style.color = '#57ff57'; errorEl.textContent = data.text; resetCodeButtonCooldown(); }
         else if (data.type === 'auth_error') { errorEl.style.color = '#ff5757'; errorEl.textContent = data.text; }
     };

@@ -5,16 +5,19 @@ SAM Messenger — десктопное приложение на Python.
 
 Дизайн НЕ переписывается: это тот же HTML (login.html / chat.html),
 который рендерится в нативном окне PyQt5 (QWebEngineView = Chrome внутри).
-Бэкенд — ваш aiohttp-сервер (server.py): локально или удалённый (Render).
 
-Запуск:
-    pip install -r requirements-desktop.txt
-    python desktop.py                       # локальный сервер + окно
-    python desktop.py --url https://sam-dc1v.onrender.com   # только окно, без сервера
-    python desktop.py --no-server --url http://localhost:8080  # внешний/свой сервер
+Режимы:
+    python desktop.py                       # локальный сервер + окно (всё на ПК)
+    python desktop.py --remote https://sam-dc1v.onrender.com
+                                            # дизайн берётся с удалённого сервера,
+                                            # данные — из его PostgreSQL; локальный
+                                            # бэкенд НЕ запускается
+    python desktop.py --url http://localhost:8080   # просто открыть адрес
+    python desktop.py --no-server --url <адрес>     # внешний сервер, без своего бэкенда
 
-Отличие от app_launcher.py: здесь есть автозапуск локального бэкенда,
-выбор адреса через аргументы и корректное завершение работы.
+Окно ведёт себя как «локальный браузер»: интерфейс открывается в своём окне,
+а WebSocket/fetch ходят на указанный сервер. E2EE-ключи и сессия сохраняются
+в localStorage между запусками (профиль WebEngine на диске).
 """
 
 import argparse
@@ -88,11 +91,20 @@ def main():
     parser = argparse.ArgumentParser(description="SAM Messenger desktop client")
     parser.add_argument("--url", default=None,
                         help="Адрес фронтенда (по умолчанию локальный сервер)")
+    parser.add_argument("--remote", default=None,
+                        help="URL удалённого сервера (например https://sam-dc1v.onrender.com): "
+                             "локальный бэкенд не запускается, дизайн и данные берутся с сервера")
     parser.add_argument("--host", default="127.0.0.1", help="Хост локального сервера")
     parser.add_argument("--port", type=int, default=8080, help="Порт локального сервера")
     parser.add_argument("--no-server", action="store_true",
                         help="Не запускать бэкенд, только окно (для --url)")
     args = parser.parse_args()
+
+    if args.remote:
+        # Режим «приложение + серверный бэкенд/PostgreSQL»: страница открывается
+        # с удалённого сервера, WebSocket/fetch идут туда же (window.location.host).
+        args.url = args.remote.rstrip("/") + "/"
+        args.no_server = True
 
     remote_mode = args.no_server or args.url is not None
     url = args.url or f"http://{args.host}:{args.port}"

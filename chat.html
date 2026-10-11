@@ -1,6 +1,22 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <script>/*SAM_CFG*/</script>
+    <script>
+    // Единая навигация: локально (file://) или на сервере; в desktop-режиме
+    // страницы берутся с удалённого сервера (данные — из его PostgreSQL).
+    function samPageUrl(path) {
+        var p = path ? String(path).replace(/^\/+/, '') : '';
+        if (typeof window.SAM_SERVER_URL === 'string' && window.SAM_SERVER_URL) {
+            return window.SAM_SERVER_URL.replace(/\/+$/, '') + '/' + p;
+        }
+        if (location.protocol === 'file:') {
+            return location.href.replace(/[^/]*$/, '') + (p ? p + '.html' : 'login.html');
+        }
+        return '/' + p;
+    }
+    </script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <link rel="manifest" href="/uploads/manifest.json">
     <meta charset="UTF-8">
@@ -328,7 +344,7 @@
                 <div class="menu-item" onclick="openProfileModal()"><span class="menu-icon">✏️</span> Профиль и Аватарка</div>
                 <div class="menu-item" onclick="openCreateGroupModal()"><span class="menu-icon">👥</span> Создать группу</div>
                 <div class="menu-item" onclick="openContactsModal()"><span class="menu-icon">👤</span> Контакты</div>
-                <div class="menu-item" onclick="window.location.href='/apps'"><span class="menu-icon">📥</span> Скачать приложение</div>
+                <div class="menu-item" onclick="window.location.href=samPageUrl('apps')"><span class="menu-icon">📥</span> Скачать приложение</div>
                 <div class="menu-item" onclick="logout()"><span class="menu-icon">🚪</span> Выйти</div>
             </div>
         </div>
@@ -571,8 +587,16 @@
         }
         const u = localStorage.getItem('sam_username') || '';
         const t = localStorage.getItem('sam_token');
-        if (!u || !t) { window.location.href = '/'; }
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        if (!u || !t) { window.location.href = samPageUrl(''); }
+        // SAM_SERVER_URL позволяет десктоп-клиенту грузить дизайн локально,
+        // а данные тянуть с удалённого сервера (PostgreSQL на сервере).
+        const SERVER_ORIGIN = (typeof window.SAM_SERVER_URL === 'string' && window.SAM_SERVER_URL)
+            ? window.SAM_SERVER_URL.replace(/\/+$/, '') : '';
+        const wsProto = SERVER_ORIGIN
+            ? (SERVER_ORIGIN.startsWith('https') ? 'wss:' : 'ws:')
+            : (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
+        const wsHost = SERVER_ORIGIN ? SERVER_ORIGIN.replace(/^https?:\/\//, '') : window.location.host;
+        const wsProtocol = wsProto;
         let ws; let reconnectAttempts = 0; let reconnectTimer = null;
         let myUsername = u; let myNickname = localStorage.getItem('sam_nickname') || u;
         let myRole = 'user'; let currentRoom = null; let currentChatPartner = null;
@@ -864,7 +888,7 @@
             }
         }
         function connectWS() {
-            ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+            ws = new WebSocket(wsProtocol + '//' + wsHost + '/ws');
             ws.onopen = handleWSOpen; ws.onclose = handleWSClose; ws.onmessage = handleWSMessage;
             ws.onerror = function() { ws.close(); };
         }
@@ -896,7 +920,7 @@
                         const cachedAvatar = data.avatar || localStorage.getItem('sam_avatar') || '';
                         applyAvatarStyle(document.getElementById('menu-avatar-letter'), myNickname, cachedAvatar);
                         if (myRole === 'admin') document.getElementById('messages').classList.add('admin-active');
-                    } else { localStorage.clear(); window.location.href = '/'; }
+                    } else { localStorage.clear(); window.location.href = samPageUrl(''); }
                 }
                 else if (data.type === 'init_data') {
                     // Каналы: комнаты без E2EE (E2EE в них отключён)
@@ -1498,12 +1522,12 @@
         function ctxDeleteMsg() {
             if (activeMsgData?.id) { ws.send(JSON.stringify({ action: 'delete', id: activeMsgData.id })); }
         }
-        function logout() { localStorage.removeItem('sam_token'); window.location.href = '/'; }
+        function logout() { localStorage.removeItem('sam_token'); window.location.href = samPageUrl(''); }
         function logoutAndForget() {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ action: 'untrust_device', device_token: generateDeviceToken() }));
-                setTimeout(() => { localStorage.clear(); window.location.href = '/'; }, 300);
-            } else { localStorage.clear(); window.location.href = '/'; }
+                setTimeout(() => { localStorage.clear(); window.location.href = samPageUrl(''); }, 300);
+            } else { localStorage.clear(); window.location.href = samPageUrl(''); }
         }
     </script>
 </body>

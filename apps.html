@@ -1,6 +1,22 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <script>/*SAM_CFG*/</script>
+    <script>
+    // Единая навигация: локально (file://) или на сервере; в desktop-режиме
+    // страницы берутся с удалённого сервера (данные — из его PostgreSQL).
+    function samPageUrl(path) {
+        var p = path ? String(path).replace(/^\/+/, '') : '';
+        if (typeof window.SAM_SERVER_URL === 'string' && window.SAM_SERVER_URL) {
+            return window.SAM_SERVER_URL.replace(/\/+$/, '') + '/' + p;
+        }
+        if (location.protocol === 'file:') {
+            return location.href.replace(/[^/]*$/, '') + (p ? p + '.html' : 'login.html');
+        }
+        return '/' + p;
+    }
+    </script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Скачать SAM Messenger</title>
@@ -122,7 +138,7 @@
     <div class="bg-glow"></div>
     <div class="cursor-light" id="cursorLight"></div>
     <div class="topbar">
-        <a href="/chat" class="back-btn" data-ripple title="Назад в чат">
+        <a href="#" onclick="window.location.href=samPageUrl('chat');return false;" class="back-btn" data-ripple title="Назад в чат">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
         </a>
         <div>

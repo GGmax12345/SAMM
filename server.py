@@ -302,28 +302,44 @@ async def close_db(app):
     if 'db_pool' in app:
         await app['db_pool'].close()
 
-def load_html(filename):
+def load_html(filename, request=None):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     filepath = os.path.join(base_dir, filename)
     with open(filepath, 'r', encoding='utf-8') as f:
-        return f.read()
+        html = f.read()
+    # Десктоп-режим: страница грузится локально (file://), а WebSocket/fetch
+    # идут на удалённый сервер. Адрес берётся из ?remote=... или SAM_SERVER_URL.
+    remote = ''
+    if request is not None:
+        remote = request.query.get('remote', '')
+    if not remote:
+        remote = os.environ.get('SAM_SERVER_URL', '')
+    safe_remote = _html_escape_url(remote.strip()) if remote else ''
+    cfg = (f'window.SAM_SERVER_URL = "{safe_remote}";' if safe_remote
+           else '/* local mode */')
+    return html.replace('/*SAM_CFG*/', cfg, 1)
+
+def _html_escape_url(url):
+    # защита от выхода из JS-строки / разрыва тега <script>
+    return (url.replace('\\', '\\\\').replace('"', '\\"')
+               .replace('<', '\\u003c').replace('\n', '').replace('\r', ''))
 
 # ─── WEB ROUTES ──────────────────────────────────────────────────────
 @routes.get('/')
 async def index(request):
-    return web.Response(text=load_html('login.html'), content_type='text/html')
+    return web.Response(text=load_html('login.html', request), content_type='text/html')
 
 @routes.get('/chat')
 async def chat_page(request):
-    return web.Response(text=load_html('chat.html'), content_type='text/html')
+    return web.Response(text=load_html('chat.html', request), content_type='text/html')
 
 @routes.get('/profile')
 async def profile_page(request):
-    return web.Response(text=load_html('profile.html'), content_type='text/html')
+    return web.Response(text=load_html('profile.html', request), content_type='text/html')
 
 @routes.get('/apps')
 async def apps_page(request):
-    return web.Response(text=load_html('apps.html'), content_type='text/html')
+    return web.Response(text=load_html('apps.html', request), content_type='text/html')
 
 @routes.get('/api/search')
 async def search_handler(request):
