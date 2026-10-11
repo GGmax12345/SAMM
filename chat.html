@@ -359,6 +359,9 @@
             <div class="modal-box">
                 <h3>Создать группу</h3>
                 <input type="text" id="new-group-name" class="modal-input" placeholder="Название группы...">
+                <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-size:14px;color:#9fb3d9;cursor:pointer;">
+                    <input type="checkbox" id="new-group-is-channel"> Создать как канал (без сквозного шифрования)
+                </label>
                 <div class="modal-btns">
                     <button class="btn-cancel" onclick="closeModals()">Отмена</button>
                     <button class="btn-primary" onclick="confirmCreateGroup()">Создать</button>
@@ -506,6 +509,7 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                         </button>
                         <button id="add-member-btn" onclick="openAddMemberModal()" style="display: none; background: #2481cc; color: white; border: none; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 600;">+ Участник</button>
+                        <button id="channel-toggle-btn" onclick="toggleCurrentChannelMode()" style="display: none; background: #6e89b5; color: white; border: none; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 600;" title="Только для админа: переключить E2EE в этой комнате">🔓 Канал</button>
                     </div>
                 </div>
                 <div class="messages-container" id="messages">
@@ -589,11 +593,26 @@
         // ═══════════ СКВОЗНОЕ ШИФРОВАНИЕ (E2EE) ═══════════
         // Ключи генерируются на устройстве (WebCrypto AES-GCM-256) и никогда
         // не покидают клиент. Сервер хранит и пересылает только зашифрованные blob'ы.
-        // Для приватных чатов ключ распределяется через «sealed box»:
-        // X25519(ECDH) + AES-GCM с публичным identity-ключом получателя (Ed25519).
+        // ГРУППОВОЙ E2EE: у группы есть общий ключ (key-of-keys). Владелец ключа
+        // запечатывает его отдельным ECDH-запечатыванием для публичного DH-ключа
+        // каждого участника (gs1:<отправитель>|<dhPub>:<iv>:<ct>). Новый участник
+        // получает ключ от любого участника, который сможет его распечатать.
+        // КАНАЛЫ (channel): E2EE ВЫКЛЮЧЕН — сообщения передаются в открытом виде.
         const b64ToBuf = (b64) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
         const bufToB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
         function roomStorageKey(roomId) { return 'sam_e2ee_' + roomId; }
+        // ── Каналы: список комнат без E2EE приходит от сервера (init_data.channels) ──
+        const e2eeChannelSet = new Set(JSON.parse(localStorage.getItem('sam_channels') || '[]'));
+        function isChannelRoom(roomId) { return e2eeChannelSet.has(roomId); }
+        function registerChannel(roomId) {
+            e2eeChannelSet.add(roomId);
+            localStorage.setItem('sam_channels', JSON.stringify([...e2eeChannelSet]));
+        }
+        function unregisterChannel(roomId) {
+            e2eeChannelSet.delete(roomId);
+            localStorage.setItem('sam_channels', JSON.stringify([...e2eeChannelSet]));
+        }
+        function e2eeEnabled(roomId) { return !isChannelRoom(roomId); }
         function roomPeers(roomId) {
             if (roomId.startsWith('PRIVATE|')) {
                 const parts = roomId.split('|');
@@ -613,6 +632,7 @@
         }
         async function e2eeEncrypt(text, roomId) {
             if (!text) return '';
+            if (!e2eeEnabled(roomId)) return 'v1:' + btoa(unescape(encodeURIComponent(text))); // канал — без шифрования
             const rec = await ensureRoomKey(roomId);
             const key = await crypto.subtle.importKey('raw', b64ToBuf(rec.k), 'AES-GCM', false, ['encrypt']);
             const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -631,7 +651,12 @@
         }
         async function e2eeDecrypt(blob, roomId) {
             if (!blob) return '';
-            if (!blob.startsWith('v2:')) return '[🔒 Protected message]';
+            // Каналы: открытые тексты v1:<base64> и легаси-текст без префикса
+            if (!e2eeEnabled(roomId)) {
+                if (blob.startsWith('v1:')) { try { return decodeURIComponent(escape(atob(blob.slice(3)))); } catch(e) { return blob.slice(3); } }
+                if (!blob.startsWith('v2:')) return blob;
+            }
+            if (!blob.startsWith('v2:')) return blob; // старый незашифрованный текст (до E2EE)
             try {
                 const rec = await ensureRoomKey(roomId);
                 const key = await crypto.subtle.importKey('raw', b64ToBuf(rec.k), 'AES-GCM', false, ['decrypt']);
@@ -641,43 +666,102 @@
                 return new TextDecoder().decode(pt);
             } catch (e) { return '[🔒 Protected message]'; }
         }
+        // ── Identity-пара (Ed25519) + долговременный DH-пар (ECDH P-256) ──
+        async function ensureIdentity() {
+            let idPair = JSON.parse(localStorage.getItem('sam_e2ee_identity') || 'null');
+            if (!idPair || !idPair.dh_priv) {
+                const kp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
+                const dh = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+                idPair = {
+                    pub: bufToB64(await crypto.subtle.exportKey('raw', kp.publicKey)),
+                    priv: bufToB64(await crypto.subtle.exportKey('pkcs8', kp.privateKey)),
+                    dh_pub: bufToB64(await crypto.subtle.exportKey('raw', dh.publicKey)),
+                    dh_priv: bufToB64(await crypto.subtle.exportKey('pkcs8', dh.privateKey))
+                };
+                localStorage.setItem('sam_e2ee_identity', JSON.stringify(idPair));
+            }
+            return idPair;
+        }
         async function e2eePublishKey(roomId) {
+            if (!e2eeEnabled(roomId)) return; // каналы не публикуют ключи
             try {
                 const rec = await ensureRoomKey(roomId);
-                let idPair = JSON.parse(localStorage.getItem('sam_e2ee_identity') || 'null');
-                if (!idPair) {
-                    const kp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
-                    idPair = {
-                        pub: bufToB64(await crypto.subtle.exportKey('raw', kp.publicKey)),
-                        priv: bufToB64(await crypto.subtle.exportKey('pkcs8', kp.privateKey))
-                    };
-                    localStorage.setItem('sam_e2ee_identity', JSON.stringify(idPair));
-                }
-                const sealed = await e2eeSealForPeers(roomId, rec.k);
+                const idPair = await ensureIdentity();
+                const sealed = await e2eeSealForPeers(roomId, rec.k, idPair);
                 ws.send(JSON.stringify({
                     action: 'e2ee_register', room: roomId,
                     identity_pub: idPair.pub,
-                    sealed_chat_key: sealed === null ? ('plain:' + rec.k) : sealed
+                    dh_pub: idPair.dh_pub,
+                    sealed_chat_key: sealed === null ? ('self:' + rec.k) : sealed
                 }));
             } catch (e) { console.error('E2EE publish error:', e); }
         }
-        async function e2eeSealForPeers(roomId, chatKeyB64) {
-            // ВНИМАНИЕ: здесь используется DH-ключ отправителя как симметричный ключ.
-            // Это работает только если обе стороныderiveBits дают одинаковый результат (ECDH симметрия).
-            // Для приватных чатов это допустимо, для групповых — требует доработки.
-            const peers = roomPeers(roomId);
+        // Запечатывание ключа чата для каждого адресата отдельно (key-of-keys).
+        // Формат записи: gs1:<отправитель>|<ephemeralDHPub>:<iv>:<ciphertext>, разделитель ';'
+        async function e2eeSealForPeers(roomId, chatKeyB64, idPair) {
+            let peers = roomPeers(roomId);
+            if (!peers.length && !roomId.startsWith('PRIVATE|') && !roomId.startsWith('SAVED|')) {
+                // Группа: участники придут с сервера вместе с их DH-ключами (e2ee_keys)
+                peers = await e2eeGroupPeerList(roomId);
+                if (peers === null) return null; // ещё не знаем состав — опубликуем позже
+            }
             if (!peers.length) return null;
-            const dh = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
-            const dhPub = bufToB64(await crypto.subtle.exportKey('raw', dh.publicKey));
-            const recipientPub = await crypto.subtle.importKey('raw', b64ToBuf(dhPub), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
-            const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: recipientPub }, dh.privateKey, 256);
-            const aes = await crypto.subtle.importKey('raw', shared, 'AES-GCM', false, ['encrypt']);
-            const iv = crypto.getRandomValues(new Uint8Array(12));
-            const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aes, b64ToBuf(chatKeyB64));
-            return 'dh1:' + dhPub + ':' + bufToB64(iv) + ':' + bufToB64(ct);
+            const entries = [];
+            for (const peer of peers) {
+                const peerDhPubB64 = peer.dh_pub || (await e2eeLookupPeerDhPub(roomId, peer.name || peer));
+                if (!peerDhPubB64) continue;
+                try {
+                    const ephem = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+                    const ephemPubB64 = bufToB64(await crypto.subtle.exportKey('raw', ephem.publicKey));
+                    const peerPub = await crypto.subtle.importKey('raw', b64ToBuf(peerDhPubB64), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+                    const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: peerPub }, ephem.privateKey, 256);
+                    const aes = await crypto.subtle.importKey('raw', shared, 'AES-GCM', false, ['encrypt']);
+                    const iv = crypto.getRandomValues(new Uint8Array(12));
+                    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aes, b64ToBuf(chatKeyB64));
+                    entries.push(`gs1:${myUsername}|${ephemPubB64}:${bufToB64(iv)}:${bufToB64(ct)}`);
+                } catch (e) { console.warn('seal failed for peer', peer, e); }
+            }
+            return entries.length ? entries.join(';') : null;
         }
-        async function e2eeOpenOwnSealed(sealedStr, myPrivPkcs8B64) {
-            if (sealedStr.startsWith('plain:')) return sealedStr.slice(6);
+        // Кэш карты участников группы -> их DH-публичные ключи
+        const e2eePeerDhCache = {};
+        async function e2eeGroupPeerList(roomId) {
+            const cached = e2eePeerDhCache[roomId];
+            if (cached && Date.now() - cached.ts < 30000) return cached.peers;
+            return null; // нет свежего кэша — пусть вызывающий запросит ключи
+        }
+        function e2eeLookupPeerDhPub(roomId, username) {
+            const cached = e2eePeerDhCache[roomId];
+            if (cached && cached.map && cached.map[username]) return cached.map[username];
+            return null;
+        }
+        // Я распечатываю записи, запечатанные ДЛЯ МЕНЯ (мой постоянный DH-приватный ключ)
+        async function e2eeOpenForMe(sealedStr, myDhPrivPkcs8B64) {
+            if (!sealedStr) return null;
+            if (sealedStr.startsWith('self:')) return sealedStr.slice(5); // моя же публикация
+            for (const entry of sealedStr.split(';')) {
+                if (!entry.startsWith('gs1:')) continue;
+                const rest = entry.slice(4);
+                const barIdx = rest.indexOf('|');
+                if (barIdx === -1) continue;
+                const sender = rest.slice(0, barIdx);
+                const body = rest.slice(barIdx + 1); // <ephemPub>:<iv>:<ct>
+                const parts = body.split(':');
+                if (parts.length !== 3) continue;
+                try {
+                    const priv = await crypto.subtle.importKey('pkcs8', b64ToBuf(myDhPrivPkcs8B64), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+                    const ephemPub = await crypto.subtle.importKey('raw', b64ToBuf(parts[0]), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+                    const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: ephemPub }, priv, 256);
+                    const aes = await crypto.subtle.importKey('raw', shared, 'AES-GCM', false, ['decrypt']);
+                    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBuf(parts[1]) }, aes, b64ToBuf(parts[2]));
+                    return { key: bufToB64(pt), sender };
+                } catch (e) { /* эта запись не для меня или ключ сменился — пробуем следующую */ }
+            }
+            return null;
+        }
+        // Старый формат одного получателя (для совместимости с приватными чатами)
+        async function e2eeOpenOwnSealedLegacy(sealedStr, myPrivPkcs8B64) {
+            if (sealedStr.startsWith('plain:')) return { key: sealedStr.slice(6), sender: null };
             if (!sealedStr.startsWith('dh1:')) return null;
             const [, senderPubB64, ivB64, ctB64] = sealedStr.split(':');
             const priv = await crypto.subtle.importKey('pkcs8', b64ToBuf(myPrivPkcs8B64), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
@@ -685,7 +769,7 @@
             const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: senderPub }, priv, 256);
             const aes = await crypto.subtle.importKey('raw', shared, 'AES-GCM', false, ['decrypt']);
             const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBuf(ivB64) }, aes, b64ToBuf(ctB64));
-            return bufToB64(pt);
+            return { key: bufToB64(pt), sender: null };
         }
         function e2eeRequestKeys(roomId) {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -694,24 +778,36 @@
         }
         async function handleE2eeKeys(data) {
             const roomId = data.room;
-            if (!roomId) return;
-            const rec = await ensureRoomKey(roomId);
+            if (!roomId || !e2eeEnabled(roomId)) return;
             const keys = data.keys || {};
-            const myPriv = (JSON.parse(localStorage.getItem('sam_e2ee_identity') || 'null') || {}).priv;
+            // Обновляем кэш состава группы и DH-ключей участников
+            const map = {}; const peers = [];
+            for (const user of Object.keys(keys)) {
+                map[user] = keys[user].dh_pub || '';
+                if (user !== myUsername) peers.push({ name: user, dh_pub: map[user] });
+            }
+            e2eePeerDhCache[roomId] = { ts: Date.now(), map, peers };
+            const rec = await ensureRoomKey(roomId);
+            const idPair = await ensureIdentity();
+            let accepted = false;
             for (const user of Object.keys(keys)) {
                 if (user === myUsername) continue;
                 const entry = keys[user];
                 try {
-                    const opened = myPriv ? await e2eeOpenOwnSealed(entry.sealed_chat_key, myPriv) : null;
-                    if (opened && opened !== rec.k) {
-                        // У партнёра есть действующий ключ чата — принимаем его,
-                        // чтобы история расшифровывалась на обоих устройствах.
-                        localStorage.setItem(roomStorageKey(roomId), JSON.stringify({ v: 1, k: opened }));
-                    } else {
-                        e2eePublishKey(roomId);
+                    let opened = await e2eeOpenForMe(entry.sealed_chat_key, idPair.dh_priv);
+                    if (!opened) opened = await e2eeOpenOwnSealedLegacy(entry.sealed_chat_key, idPair.priv);
+                    if (opened && opened.key && opened.key !== rec.k) {
+                        // У участников есть действующий общий ключ — принимаем его,
+                        // чтобы история расшифровывалась на всех устройствах.
+                        localStorage.setItem(roomStorageKey(roomId), JSON.stringify({ v: 1, k: opened.key }));
+                        accepted = true;
+                        break;
                     }
-                } catch (e) { e2eePublishKey(roomId); }
+                } catch (e) { /* пробуем следующего участника */ }
             }
+            // Всегда (пере)публикуем свой набор запечатанных ключей — теперь мы
+            // знаем DH-публичные ключи всех участников и можем запечатать для них.
+            e2eePublishKey(roomId);
         }
         // ═══════════ КОНЕЦ E2EE ═══════════
         function initNotifications() {
@@ -803,6 +899,11 @@
                     } else { localStorage.clear(); window.location.href = '/'; }
                 }
                 else if (data.type === 'init_data') {
+                    // Каналы: комнаты без E2EE (E2EE в них отключён)
+                    const chList = data.channels || [];
+                    localStorage.setItem('sam_channels', JSON.stringify(chList));
+                    e2eeChannelSet.clear();
+                    chList.forEach(c => e2eeChannelSet.add(c));
                     (data.groups || []).forEach(g => addRoomToSidebar(g, false));
                     (data.private_rooms || []).forEach(pr => {
                         const parts = pr.split('|');
@@ -814,6 +915,13 @@
                     if (lastRoomId && lastRoomTitle) { changeRoom(lastRoomId, lastRoomTitle); }
                 }
                 else if (data.type === 'new_group') { addRoomToSidebar(data.name, false); }
+                else if (data.type === 'new_channel') { registerChannel(data.name); addRoomToSidebar(data.name, false); }
+                else if (data.type === 'channel_toggled') {
+                    if (data.is_channel) { registerChannel(data.room); } else { unregisterChannel(data.room); }
+                    triggerToast('Канал', data.text || ('E2EE ' + (data.is_channel ? 'выключен' : 'включён') + ' для ' + data.room));
+                    if (currentRoom === data.room) changeRoom(data.room, document.getElementById('chat-title-top').textContent);
+                }
+                else if (data.type === 'e2ee_skipped') { /* сервер сообщил: это канал, ключи не нужны */ }
                 else if (data.type === 'contacts_list') { renderContactsList(data.contacts); }
                 else if (data.type === 'contact_search_results') {
                     if (activeUserSearchContext === 'add_member') { renderAddMemberSearchResults(data.results); }
@@ -1018,9 +1126,11 @@
         function openCreateGroupModal() { toggleMenu(); openModal('group-modal'); }
         function confirmCreateGroup() {
             const val = document.getElementById('new-group-name').value.trim();
+            const asChannel = document.getElementById('new-group-is-channel').checked;
             if (val) {
-                ws.send(JSON.stringify({ action: 'create_group', name: val }));
+                ws.send(JSON.stringify({ action: asChannel ? 'create_channel' : 'create_group', name: val }));
                 document.getElementById('new-group-name').value = '';
+                document.getElementById('new-group-is-channel').checked = false;
                 closeModals();
             }
         }
@@ -1156,8 +1266,14 @@
                 currentChatPartner = titleText;
             } else {
                 document.getElementById('chat-title-top').textContent = titleText;
-                document.getElementById('chat-subtitle-top').textContent = 'Групповой чат';
+                document.getElementById('chat-subtitle-top').textContent = isChannelRoom(roomId) ? 'Канал · без E2EE 🔓' : 'Группа · E2EE 🔒';
                 document.getElementById('add-member-btn').style.display = 'block';
+                // Кнопка режима канала — только для админов в групповых комнатах
+                const chBtn = document.getElementById('channel-toggle-btn');
+                if (myRole === 'admin') {
+                    chBtn.style.display = 'inline-block';
+                    chBtn.textContent = isChannelRoom(roomId) ? '🔒 В группу (E2EE)' : '🔓 Сделать каналом';
+                } else { chBtn.style.display = 'none'; }
                 document.getElementById('call-user-btn').style.display = 'none';
                 currentChatPartner = null;
             }
@@ -1167,6 +1283,11 @@
             // E2EE: публикуем/запрашиваем ключи чата, чтобы история расшифровывалась
             e2eePublishKey(roomId);
             e2eeRequestKeys(roomId);
+        }
+        function toggleCurrentChannelMode() {
+            if (!currentRoom || myRole !== 'admin') return;
+            const makeChannel = !isChannelRoom(currentRoom);
+            ws.send(JSON.stringify({ action: 'toggle_channel', room: currentRoom, is_channel: makeChannel }));
         }
         function backToRoomList() { document.getElementById('layout-wrapper').classList.remove('chat-open'); }
         function sendTextMessage() {

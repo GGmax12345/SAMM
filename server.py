@@ -224,10 +224,15 @@ async def init_db(app):
                 username TEXT NOT NULL,
                 identity_pub TEXT NOT NULL,
                 sealed_chat_key TEXT NOT NULL,
+                dh_pub TEXT DEFAULT '',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (room, username)
             )
         ''')
+        await conn.execute('ALTER TABLE e2ee_keys ADD COLUMN IF NOT EXISTS dh_pub TEXT DEFAULT \'\'')
+        # Тип комнаты: 'group' — групповой чат со сквозным шифрованием,
+        # 'channel' — открытый канал без E2EE (сообщения хранятся в открытом виде).
+        await conn.execute("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS is_channel INTEGER DEFAULT 0")
 
         if not os.environ.get('ADMIN_PASSWORD'):
             print("ВНИМАНИЕ: ADMIN_PASSWORD не задан — используется пароль по умолчанию.")
@@ -264,6 +269,11 @@ async def finish_login(ws, pool, db_id, db_username, db_display_name, db_role, t
         db_username
     )
     groups = [r['room_name'] for r in groups_rows]
+    # Каналы (is_channel=1) работают без E2EE — клиент должен знать, какие комнаты каналы.
+    channel_rows = await pool.fetch(
+        "SELECT name FROM rooms WHERE is_channel = 1"
+    )
+    channels = [r['name'] for r in channel_rows]
 
     private_rooms = []
     my_private_rooms = await pool.fetch('''
@@ -283,6 +293,7 @@ async def finish_login(ws, pool, db_id, db_username, db_display_name, db_role, t
     await ws.send_json({
         "type": "init_data",
         "groups": groups,
+        "channels": channels,
         "private_rooms": private_rooms,
         "saved_room": saved_room
     })
@@ -572,11 +583,19 @@ async def websocket_handler(request):
                     room = data.get('room', '')
                     identity_pub = data.get('identity_pub', '')
                     sealed_chat_key = data.get('sealed_chat_key', '')
+                    dh_pub = data.get('dh_pub', '')
                     if not room or not identity_pub or not sealed_chat_key:
                         await ws.send_json({"type": "error_msg", "text": "E2EE: некорректные данные ключей"})
                         continue
-                    if len(identity_pub) > 512 or len(sealed_chat_key) > 4096:
+                    if len(identity_pub) > 512 or len(sealed_chat_key) > 8192 or len(dh_pub) > 512:
                         await ws.send_json({"type": "error_msg", "text": "E2EE: ключи слишком длинные"})
+                        continue
+                    # Каналы работают без E2EE — ключи там не нужны.
+                    is_channel_room = await pool.fetchval(
+                        "SELECT COALESCE(is_channel, 0) FROM rooms WHERE name = $1", room
+                    )
+                    if is_channel_room:
+                        await ws.send_json({"type": "e2ee_skipped", "room": room, "reason": "channel"})
                         continue
                     # Разрешаем публиковать ключи только участникам чата
                     can_post = False
@@ -595,11 +614,11 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "error_msg", "text": "E2EE: вы не состоите в этом чате"})
                         continue
                     await pool.execute('''
-                        INSERT INTO e2ee_keys (room, username, identity_pub, sealed_chat_key)
-                        VALUES ($1, $2, $3, $4)
+                        INSERT INTO e2ee_keys (room, username, identity_pub, sealed_chat_key, dh_pub)
+                        VALUES ($1, $2, $3, $4, $5)
                         ON CONFLICT (room, username)
-                        DO UPDATE SET identity_pub = $3, sealed_chat_key = $4, updated_at = CURRENT_TIMESTAMP
-                    ''', room, sender_name, identity_pub, sealed_chat_key)
+                        DO UPDATE SET identity_pub = $3, sealed_chat_key = $4, dh_pub = $5, updated_at = CURRENT_TIMESTAMP
+                    ''', room, sender_name, identity_pub, sealed_chat_key, dh_pub)
                     await ws.send_json({"type": "e2ee_registered", "room": room})
 
                 elif action == 'e2ee_get_keys':
@@ -633,13 +652,14 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "e2ee_keys", "room": room, "keys": {}})
                         continue
                     rows = await pool.fetch(
-                        "SELECT username, identity_pub, sealed_chat_key FROM e2ee_keys "
+                        "SELECT username, identity_pub, sealed_chat_key, dh_pub FROM e2ee_keys "
                         "WHERE room = $1 AND username = ANY($2::text[])",
                         room, peer_names
                     )
                     keys = {r['username']: {
                         "identity_pub": r['identity_pub'],
-                        "sealed_chat_key": r['sealed_chat_key']
+                        "sealed_chat_key": r['sealed_chat_key'],
+                        "dh_pub": r['dh_pub'] or ''
                     } for r in rows}
                     await ws.send_json({"type": "e2ee_keys", "room": room, "keys": keys})
 
@@ -760,6 +780,54 @@ async def websocket_handler(request):
                         except asyncpg.UniqueViolationError:
                             await ws.send_json({"type": "error_msg", "text": "Группа уже существует!"})
 
+                elif action == 'create_channel':
+                    # Канал — открытая комната без сквозного шифрования (как в Bitrix24).
+                    if not sender_name or active_connections.get(ws, {}).get("role") != 'admin':
+                        await ws.send_json({"type": "error_msg", "text": "Каналы могут создавать только администраторы."})
+                        continue
+                    channel_name = data.get('name', '').strip()
+                    if channel_name and len(channel_name) <= 64:
+                        try:
+                            await pool.execute(
+                                "INSERT INTO rooms (name, type, is_channel) VALUES ($1, 'group', 1)", channel_name
+                            )
+                            await pool.execute(
+                                "INSERT INTO room_members (room_name, username) VALUES ($1, $2)",
+                                channel_name, sender_name
+                            )
+                            for client in list(active_connections.keys()):
+                                try:
+                                    await client.send_json({"type": "new_channel", "name": channel_name})
+                                except Exception:
+                                    pass
+                            await ws.send_json({"type": "success_msg", "text": f"Канал «{channel_name}» создан (E2EE выключен)."})
+                        except asyncpg.UniqueViolationError:
+                            await ws.send_json({"type": "error_msg", "text": "Канал с таким названием уже существует!"})
+                    elif channel_name:
+                        await ws.send_json({"type": "error_msg", "text": "Слишком длинное название канала."})
+
+                elif action == 'toggle_channel':
+                    # Включить/выключить режим канала для комнаты.
+                    if not sender_name or active_connections.get(ws, {}).get("role") != 'admin':
+                        await ws.send_json({"type": "error_msg", "text": "Назначать каналы может только администратор."})
+                        continue
+                    room = data.get('room', '')
+                    target_val = int(bool(data.get('is_channel')))
+                    if room and not room.startswith(("PRIVATE|", "SAVED|")):
+                        changed = await pool.execute(
+                            "UPDATE rooms SET is_channel = $1 WHERE name = $2 AND type != 'private'",
+                            target_val, room
+                        )
+                        if changed and changed.endswith("1"):
+                            # При переходе в канал старые зашифрованные ключи не нужны.
+                            await pool.execute("DELETE FROM e2ee_keys WHERE room = $1", room)
+                            await ws.send_json({
+                                "type": "channel_toggled", "room": room, "is_channel": bool(target_val),
+                                "text": f"«{room}»: {'E2EE выключен (канал)' if target_val else 'E2EE включён (группа)'}"
+                            })
+                        else:
+                            await ws.send_json({"type": "error_msg", "text": "Комната не найдена."})
+
                 elif action == 'add_to_group':
                     if not sender_name:
                         continue
@@ -876,6 +944,7 @@ async def websocket_handler(request):
                                 "id": msg_id,
                                 "room": room,
                                 "username": user_info["username"],
+                                "nickname": sender_display,
                                 "display_name": sender_display,
                                 "content": content,
                                 "msg_type": msg_type,
