@@ -4,3 +4,6 @@ asyncpg
 Pillow
 argon2-cffi
 cryptography
+PyQt5>=5.15
+PyQtWebEngine>=5.15.7
+pyinstaller>=6.0
