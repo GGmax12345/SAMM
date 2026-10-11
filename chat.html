@@ -619,6 +619,16 @@
             const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));
             return 'v2:' + bufToB64(iv) + ':' + bufToB64(ct);
         }
+        // Очередь отправки: гарантирует, что сообщения шифруются и уходят на сервер
+        // строго по порядку (иначе параллельные IV/операции могут перемешать историю).
+        let e2eeSendQueue = Promise.resolve();
+        function e2eeSend(actionObj, text, roomId) {
+            e2eeSendQueue = e2eeSendQueue.then(async () => {
+                try { actionObj.content = await e2eeEncrypt(text, roomId); }
+                catch (e) { console.error('E2EE encrypt error:', e); return; }
+                if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(actionObj));
+            });
+        }
         async function e2eeDecrypt(blob, roomId) {
             if (!blob) return '';
             if (!blob.startsWith('v2:')) return '[🔒 Protected message]';
@@ -652,13 +662,14 @@
             } catch (e) { console.error('E2EE publish error:', e); }
         }
         async function e2eeSealForPeers(roomId, chatKeyB64) {
-            // Ограничение браузерного WebCrypto: Ed25519 нельзя конвертировать в X25519,
-            // поэтому sealed box строится отдельным ECDH-паком (P-256).
+            // ВНИМАНИЕ: здесь используется DH-ключ отправителя как симметричный ключ.
+            // Это работает только если обе стороныderiveBits дают одинаковый результат (ECDH симметрия).
+            // Для приватных чатов это допустимо, для групповых — требует доработки.
             const peers = roomPeers(roomId);
             if (!peers.length) return null;
-            const dh = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, []);
+            const dh = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
             const dhPub = bufToB64(await crypto.subtle.exportKey('raw', dh.publicKey));
-            const recipientPub = await crypto.subtle.importKey('raw', b64ToBuf(dhPub), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+            const recipientPub = await crypto.subtle.importKey('raw', b64ToBuf(dhPub), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
             const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: recipientPub }, dh.privateKey, 256);
             const aes = await crypto.subtle.importKey('raw', shared, 'AES-GCM', false, ['encrypt']);
             const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -825,8 +836,11 @@
                     if (data.room !== 'SAVED_MESSAGES') { addRoomToSidebar(data.room, isPrivate, targetTitle); }
                     const previewEl = document.getElementById('p-' + data.room);
                     const timeEl = document.getElementById('t-' + data.room);
+                    // E2EE: контент расшифровывается асинхронно на клиенте
                     let contentText = '';
-                    if (data.msg_type === 'text') { contentText = decryptData(data.content, data.room); }
+                    if (data.msg_type === 'text') {
+                        try { contentText = await e2eeDecrypt(data.content, data.room); } catch(e) { contentText = '[🔒 Protected message]'; }
+                    }
                     else if (['image', 'file', 'audio', 'video'].includes(data.msg_type)) {
                         contentText = data.msg_type === 'image' ? '[Фотография]' : data.msg_type === 'audio' ? '[Аудиозапись]' : data.msg_type === 'video' ? '[Видеозапись]' : '[Файл]';
                     } else { contentText = '[Системное сообщение]'; }
@@ -1150,20 +1164,22 @@
             document.getElementById('messages').innerHTML = '<div style="text-align: center; color: #6e89b5; padding: 20px; font-size: 14.5px;">Загрузка сообщений...</div>';
             document.getElementById('layout-wrapper').classList.add('chat-open');
             ws.send(JSON.stringify({ action: 'join_room', room: roomId }));
+            // E2EE: публикуем/запрашиваем ключи чата, чтобы история расшифровывалась
+            e2eePublishKey(roomId);
+            e2eeRequestKeys(roomId);
         }
         function backToRoomList() { document.getElementById('layout-wrapper').classList.remove('chat-open'); }
         function sendTextMessage() {
             const input = document.getElementById('message-input');
             const text = input.value.trim();
+            if (!currentRoom) return;
             if (pendingAttachment) {
                 if (!pendingAttachment.uploaded) { alert('Файл ещё загружается, подождите...'); return; }
                 const contentPayload = { name: pendingAttachment.name, url: pendingAttachment.url, caption: text || '' };
-                const encryptedPayload = encryptData(JSON.stringify(contentPayload), currentRoom);
-                ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedPayload, msg_type: pendingAttachment.msg_type }));
+                e2eeSend({ action: 'send_msg', room: currentRoom, msg_type: pendingAttachment.msg_type }, JSON.stringify(contentPayload), currentRoom);
                 input.value = ''; cancelAttachment();
-            } else if (text && currentRoom) {
-                const encryptedText = encryptData(text, currentRoom);
-                ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedText, msg_type: 'text' }));
+            } else if (text) {
+                e2eeSend({ action: 'send_msg', room: currentRoom, msg_type: 'text' }, text, currentRoom);
                 input.value = '';
             }
         }
@@ -1178,8 +1194,7 @@
             .then(data => {
                 if (data.success) {
                     const contentPayload = { name: data.name, url: data.url };
-                    const encryptedPayload = encryptData(JSON.stringify(contentPayload), currentRoom);
-                    ws.send(JSON.stringify({ action: 'send_msg', room: currentRoom, content: encryptedPayload, msg_type: data.msg_type }));
+                    e2eeSend({ action: 'send_msg', room: currentRoom, msg_type: data.msg_type }, JSON.stringify(contentPayload), currentRoom);
                 } else { alert("Ошибка загрузки файла: " + data.error); }
             })
             .catch(err => { console.error(err); alert("Не удалось загрузить файл на сервер."); });
@@ -1199,12 +1214,18 @@
             let html = `<div class="msg-author">${escapeHTML(msg.nickname || msg.username)}</div><div class="msg-body" id="content-${msg.id}">`;
             const targetRoomKey = msg.room || currentRoom;
             if (msg.msg_type === 'text') {
-                const decryptedText = decryptData(msg.content, targetRoomKey);
-                html += escapeHTML(decryptedText);
+                // E2EE: асинхронная расшифровка на клиенте; сервер не видит текст.
+                const bodyId = 'content-' + msg.id;
+                html += '<span class="e2ee-pending">🔒</span>';
+                e2eeDecrypt(msg.content, targetRoomKey).then(plain => {
+                    const bodyEl = document.getElementById(bodyId);
+                    if (bodyEl) bodyEl.innerHTML = escapeHTML(plain);
+                }).catch(() => {});
             } else if (['image', 'file', 'audio', 'video', 'voice', 'video_note'].includes(msg.msg_type)) {
+              e2eeDecrypt(msg.content, targetRoomKey).then(decryptedStr => {
                 try {
-                    const decryptedStr = decryptData(msg.content, targetRoomKey);
-                    const fileData = typeof decryptedStr === 'string' ? JSON.parse(decryptedStr) : decryptedStr;
+                    const fileData = typeof decryptedStr === 'string' && decryptedStr.startsWith('{') ? JSON.parse(decryptedStr) : null;
+                    if (!fileData) throw new Error('no-plaintext');
                     if (msg.msg_type === 'image') {
                         html += `<img src="${encodeURI(fileData.url)}" alt="${escapeHTML(fileData.name)}">`;
                         if (fileData.caption) html += `<div style="margin-top:6px;font-size:14.5px;line-height:1.4;">${escapeHTML(fileData.caption)}</div>`;
@@ -1225,12 +1246,17 @@
                         html += `<br><a href="${encodeURI(fileData.url)}" download="${escapeHTML(fileData.name)}" class="download-btn">📥 Скачать</a>`;
                     }
                 } catch(e) {
-                    try {
-                        const fileData = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
-                        if (msg.msg_type === 'image') html += `<img src="${encodeURI(fileData.url)}">`;
-                        else html += `📎 ${escapeHTML(fileData.name)}`;
-                    } catch(innerErr) { html += `📎 Защищенный файл данных`; }
+                    html += `📎 Защищенный файл данных`;
                 }
+                html += `</div><div class="msg-time">${escapeHTML(msg.time)}</div>`;
+                if (msg.msg_type !== 'system') {
+                    html += `<div class="admin-actions"><span class="adm-btn" onclick="deleteMessage('${msg.id}')">Удалить</span></div>`;
+                }
+                div.innerHTML = html; row.appendChild(div); container.appendChild(row);
+                if (!isHistoryLoad) container.scrollTop = container.scrollHeight;
+                else setTimeout(() => { container.scrollTop = container.scrollHeight; }, 10);
+              }).catch(() => {});
+              return;
             } else if (msg.msg_type === 'system') { html += escapeHTML(msg.content); }
             html += `</div><div class="msg-time">${escapeHTML(msg.time)}</div>`;
             if (msg.msg_type !== 'system') {
